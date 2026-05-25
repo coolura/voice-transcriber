@@ -272,7 +272,7 @@
 <body>
 <div class="container">
   <h1>🎙️ 音声録音 & テキスト化</h1>
-  <p class="subtitle">録音 → Web Speech API でテキスト化 → Gemini で要約 → Google スプレッドシートに自動保存。全部ブラウザだけで完結。</p>
+  <p class="subtitle">録音 → Web Speech API でテキスト化 → Gemini で要約 → Notion に自動保存。全部ブラウザだけで完結。</p>
 
   <div id="error" class="error" style="display:none;"></div>
   <div id="hint" class="hint" style="display:none;"></div>
@@ -296,23 +296,21 @@
     </details>
 
     <details id="sheetDetails" style="margin-top:16px;">
-      <summary>📊 シート保存設定 (Google スプレッドシート)</summary>
+      <summary>🗒️ Notion 保存設定</summary>
       <div class="settings-row" style="margin-top:8px;">
-        <label for="sheetUrlInput">Web App URL:</label>
+        <label for="sheetUrlInput">Apps Script URL:</label>
         <input id="sheetUrlInput" type="password" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off">
         <button id="saveSheetBtn">保存</button>
         <button id="testSheetBtn" class="ghost">接続テスト</button>
         <span class="saved-flash" id="sheetSavedFlash">✓ 保存しました</span>
       </div>
       <div class="settings-row" style="margin-top:8px;">
-        <label><input type="checkbox" id="autoPipelineToggle"> 録音停止後に自動で「要約 → シート送信」まで実行</label>
+        <label><input type="checkbox" id="autoPipelineToggle"> 録音停止後に自動で「要約 → Notion 保存」まで実行</label>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:8px 0 0;">
         セットアップ手順:
         <a href="https://github.com/coolura/voice-transcriber/blob/main/apps-script/Code.gs" target="_blank" rel="noopener">apps-script/Code.gs</a>
-        をコピー →
-        <a href="https://sheets.new" target="_blank" rel="noopener">新しいスプレッドシート</a>
-        を作成 → 拡張機能 → Apps Script → 貼り付けて保存 → デプロイ → ウェブアプリ (アクセス: 全員) → 表示された URL を上の欄に貼り付け
+        の手順に沿って Notion インテグレーション作成 → データベース作成 → Apps Script にデプロイ → 表示された URL を上の欄に貼り付け
       </p>
     </details>
   </div>
@@ -428,13 +426,13 @@
         id: 'test_' + Date.now(),
         createdAt: new Date().toISOString(),
         durationSec: 0,
-        text: '【接続テスト】voice-transcriber より',
-        summary: '接続テスト成功',
+        text: '【接続テスト】voice-transcriber より Notion へ',
+        summary: 'Notion 接続テスト成功',
       });
       testSheetBtn.textContent = '✓ 成功';
       setTimeout(() => { testSheetBtn.textContent = '接続テスト'; testSheetBtn.disabled = false; }, 1500);
     } catch (err) {
-      showError('シート送信失敗: ' + err.message);
+      showError('Notion 送信失敗: ' + err.message);
       testSheetBtn.textContent = '接続テスト';
       testSheetBtn.disabled = false;
     }
@@ -457,7 +455,7 @@
       setStatus('待機中', false);
       return;
     }
-    setStatus('📊 シート送信中…', false);
+    setStatus('🗒️ Notion 送信中…', false);
     try {
       await sendToSheet({
         id: entry.id,
@@ -472,7 +470,7 @@
       setStatus('✓ 完了', false);
       setTimeout(() => setStatus('待機中', false), 2000);
     } catch (err) {
-      showError('自動シート送信失敗: ' + err.message);
+      showError('Notion 自動送信失敗: ' + err.message);
       setStatus('待機中', false);
     }
   }
@@ -898,11 +896,11 @@ ${text}
               <div class="summary-box">
                 <div class="summary-label">✨ AI要約</div>${escapeHtml(e.summary)}
               </div>` : ''}
-            ${e.sentAt ? `<div style="font-size:11px;color:var(--success);margin-top:6px;">📊 シート送信済 (${new Date(e.sentAt).toLocaleString('ja-JP')})</div>` : ''}
+            ${e.sentAt ? `<div style="font-size:11px;color:var(--success);margin-top:6px;">🗒️ Notion 送信済 (${new Date(e.sentAt).toLocaleString('ja-JP')})</div>` : ''}
           </div>
           <div class="item-actions">
             <button class="icon-btn summarize" data-id="${e.id}" ${!e.text ? 'disabled' : ''}>${e.summary ? '再要約' : '要約'}</button>
-            <button class="icon-btn send" data-id="${e.id}">${e.sentAt ? '再送信' : 'シートへ送信'}</button>
+            <button class="icon-btn send" data-id="${e.id}">${e.sentAt ? '再送信' : 'Notionへ送信'}</button>
             <button class="icon-btn copy" data-id="${e.id}">コピー</button>
             <button class="icon-btn edit" data-id="${e.id}">編集</button>
             <button class="icon-btn dl" data-id="${e.id}">音声DL</button>

@@ -1,162 +1,163 @@
 /**
  * 音声録音 & テキスト化アプリ用 Google Apps Script Web App
- * MTG ごとに新しいシートを追加し、index シートで一覧管理します。
+ * Notion API への中継役として動作します。
  *
- * セットアップ手順:
- *  1. Google スプレッドシートを新規作成
- *  2. 「拡張機能」→「Apps Script」を開く
- *  3. このファイルの内容をすべて貼り付けて保存
- *  4. 右上の「デプロイ」→「新しいデプロイ」
- *     - 種類: 「ウェブアプリ」
- *     - 次のユーザーとして実行: 自分
- *     - アクセスできるユーザー: 全員
- *  5. 「デプロイ」をクリック → 表示された URL をコピー
- *  6. 音声録音アプリの「📊 シート保存設定」に貼り付けて「保存」
+ * ===== 初回セットアップ手順 =====
+ *
+ * 【1】Notion インテグレーションを作成
+ *   https://www.notion.so/my-integrations
+ *   → 「新しいインテグレーション」→ 名前: voice-transcriber → 送信
+ *   → 「シークレット」をコピー（secret_xxx...）
+ *
+ * 【2】Notion にデータベースを作成
+ *   Notion で新しいページ → 「/database」→ 「データベース（インライン）」を選択
+ *   → 作成したデータベースの URL から ID をコピー:
+ *     https://www.notion.so/username/【ここの32文字】?v=...
+ *
+ * 【3】データベースをインテグレーションと共有
+ *   データベース右上の「...」→「接続先」→ voice-transcriber を選択
+ *
+ * 【4】このスクリプトに認証情報を保存（1回だけ実行）
+ *   下の setNotionCredentials() の 2 行を書き換えて保存
+ *   → 上部メニュー「実行」→「実行する関数を選択: setNotionCredentials」→「実行」
+ *   → ログに「✅ 設定完了」と出たら、トークンと ID の行を元の説明文に戻して保存
+ *
+ * 【5】再デプロイ（デプロイを管理 → 新しいバージョン → デプロイ）
+ *   ※ URL は変わりません
  */
 
-// ===== 設定 =====
-const INDEX_SHEET  = 'index';   // 一覧シート名
-const DATE_FORMAT  = 'yyyy-MM-dd HH:mm'; // シートタブ名フォーマット
+// ===== 初回のみ実行する設定関数 =====
+function setNotionCredentials() {
+  PropertiesService.getScriptProperties().setProperties({
+    NOTION_TOKEN:       'ここに Notion インテグレーションのシークレットを貼り付け',
+    NOTION_DATABASE_ID: 'ここに Notion データベース ID を貼り付け',
+  });
+  Logger.log('✅ 設定完了');
+}
 
-// ===== エントリポイント =====
+// ===== メイン: POST を受け取って Notion にページを追加 =====
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
-    const ss   = SpreadsheetApp.getActiveSpreadsheet();
+    const props  = PropertiesService.getScriptProperties();
+    const token  = props.getProperty('NOTION_TOKEN');
+    const dbId   = props.getProperty('NOTION_DATABASE_ID');
 
-    // 1) index シートを確保
-    const indexSheet = getOrCreateIndex_(ss);
+    if (!token || !dbId || token.startsWith('ここに')) {
+      return jsonOut_({ ok: false, error: 'Notion の認証情報が未設定です。setNotionCredentials() を実行してください。' });
+    }
 
-    // 2) 新しい MTG シートを作成
-    const createdAt  = data.createdAt ? new Date(data.createdAt) : new Date();
-    const sheetTitle = makeSheetTitle_(ss, createdAt);
-    const mtgSheet   = ss.insertSheet(sheetTitle);
-    fillMtgSheet_(mtgSheet, data, createdAt);
+    const data      = JSON.parse(e.postData.contents);
+    const createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
+    const tz        = Session.getScriptTimeZone();
+    const title     = Utilities.formatDate(createdAt, tz, 'yyyy-MM-dd HH:mm') + ' MTG';
+    const duration  = formatDuration_(Number(data.durationSec || 0));
 
-    // 3) index に 1 行追加
-    const durationStr = formatDuration_(Number(data.durationSec || 0));
-    indexSheet.appendRow([
-      indexSheet.getLastRow(), // No.
-      createdAt,
-      durationStr,
-      Number((data.text || '').length),
-      sheetTitle,
-      String(data.summary || '').slice(0, 120) + (String(data.summary || '').length > 120 ? '…' : ''),
-    ]);
+    const body = {
+      parent:     { database_id: dbId },
+      icon:       { type: 'emoji', emoji: '🎙️' },
+      properties: {
+        '名前': { title: [{ text: { content: title } }] },
+      },
+      children: buildBlocks_(
+        Utilities.formatDate(createdAt, tz, 'yyyy年MM月dd日 HH:mm:ss'),
+        duration,
+        Number((data.text || '').length),
+        String(data.summary || ''),
+        String(data.text    || ''),
+      ),
+    };
 
-    // index の最終行をハイパーリンク化（シート名でジャンプ）
-    const lastRow    = indexSheet.getLastRow();
-    const ssId       = ss.getId();
-    const gid        = mtgSheet.getSheetId();
-    const linkFormula = `=HYPERLINK("https://docs.google.com/spreadsheets/d/${ssId}/edit#gid=${gid}","${sheetTitle}")`;
-    indexSheet.getRange(lastRow, 5).setFormula(linkFormula);
+    const res     = UrlFetchApp.fetch('https://api.notion.com/v1/pages', {
+      method:          'post',
+      headers:         notionHeaders_(token),
+      payload:         JSON.stringify(body),
+      muteHttpExceptions: true,
+    });
+    const resData = JSON.parse(res.getContentText());
 
-    return jsonOut_({ ok: true, sheet: sheetTitle });
+    if (res.getResponseCode() !== 200) {
+      return jsonOut_({ ok: false, error: resData.message || 'Notion API エラー' });
+    }
+    return jsonOut_({ ok: true, url: resData.url });
+
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err && err.message || err) });
   }
 }
 
 function doGet() {
-  return jsonOut_({ ok: true, msg: 'voice-transcriber endpoint is alive. Use POST to append rows.' });
+  return jsonOut_({ ok: true, msg: 'voice-transcriber Notion endpoint is alive.' });
 }
 
-// ===== MTG シート作成 =====
-function fillMtgSheet_(sheet, data, createdAt) {
-  const durationStr = formatDuration_(Number(data.durationSec || 0));
-  const text        = String(data.text    || '（文字起こしなし）');
-  const summary     = String(data.summary || '（要約なし）');
+// ===== Notion ブロック構築 =====
+function buildBlocks_(dateStr, duration, charCount, summary, text) {
+  const blocks = [];
 
-  // --- ヘッダー情報ブロック ---
-  const meta = [
-    ['📅 日時',   Utilities.formatDate(createdAt, Session.getScriptTimeZone(), 'yyyy年MM月dd日 HH:mm:ss')],
-    ['⏱ 長さ',   durationStr],
-    ['📝 文字数', (data.text || '').length + '文字'],
-    ['🆔 ID',     String(data.id || '')],
-  ];
-  meta.forEach(([k, v], i) => {
-    sheet.getRange(i + 1, 1).setValue(k).setFontWeight('bold');
-    sheet.getRange(i + 1, 2).setValue(v);
+  // メタ情報 callout
+  blocks.push({
+    object: 'block', type: 'callout',
+    callout: {
+      icon:      { type: 'emoji', emoji: '📋' },
+      rich_text: [{ text: { content:
+        '日時: ' + dateStr + '　長さ: ' + duration + '　文字数: ' + charCount + '文字'
+      } }],
+      color: 'gray_background',
+    },
   });
 
-  const rowOffset = meta.length + 2;
-
-  // --- AI 要約ブロック ---
-  sheet.getRange(rowOffset, 1).setValue('✨ AI 要約')
-    .setFontWeight('bold').setFontSize(12)
-    .setBackground('#1e3a2f').setFontColor('#86efac');
-  sheet.getRange(rowOffset, 1, 1, 6).merge().setBackground('#1e3a2f');
-
-  const summaryLines = summary.split('\n');
-  summaryLines.forEach((line, i) => {
-    sheet.getRange(rowOffset + 1 + i, 1).setValue(line);
-    sheet.getRange(rowOffset + 1 + i, 1, 1, 6).merge();
+  // AI 要約
+  blocks.push(heading2_('✨ AI 要約'));
+  chunkText_(summary || '（要約なし）').forEach(function(chunk) {
+    blocks.push(paragraph_(chunk));
   });
 
-  const textOffset = rowOffset + summaryLines.length + 2;
+  blocks.push({ object: 'block', type: 'divider', divider: {} });
 
-  // --- 全文テキストブロック ---
-  sheet.getRange(textOffset, 1).setValue('📄 全文テキスト')
-    .setFontWeight('bold').setFontSize(12)
-    .setBackground('#1e2a3a').setFontColor('#93c5fd');
-  sheet.getRange(textOffset, 1, 1, 6).merge().setBackground('#1e2a3a');
-
-  const textLines = text.split('\n');
-  textLines.forEach((line, i) => {
-    sheet.getRange(textOffset + 1 + i, 1).setValue(line);
-    sheet.getRange(textOffset + 1 + i, 1, 1, 6).merge();
+  // 全文テキスト
+  blocks.push(heading2_('📄 全文テキスト'));
+  chunkText_(text || '（文字起こしなし）').forEach(function(chunk) {
+    blocks.push(paragraph_(chunk));
   });
 
-  // --- 列幅調整 ---
-  sheet.setColumnWidth(1, 120);
-  sheet.setColumnWidth(2, 600);
-  sheet.setFrozenRows(0);
+  return blocks;
 }
 
-// ===== index シート初期化 =====
-function getOrCreateIndex_(ss) {
-  let sheet = ss.getSheetByName(INDEX_SHEET);
-  if (!sheet) {
-    // 末尾ではなく先頭に挿入
-    sheet = ss.insertSheet(INDEX_SHEET, 0);
-    const headers = ['No.', '日時', '長さ', '文字数', 'シート', '要約(冒頭)'];
-    sheet.appendRow(headers);
-    const hRange = sheet.getRange(1, 1, 1, headers.length);
-    hRange.setFontWeight('bold').setBackground('#0f172a').setFontColor('#f1f5f9');
-    sheet.setFrozenRows(1);
-    sheet.setColumnWidth(1, 50);
-    sheet.setColumnWidth(2, 160);
-    sheet.setColumnWidth(3, 80);
-    sheet.setColumnWidth(4, 80);
-    sheet.setColumnWidth(5, 180);
-    sheet.setColumnWidth(6, 400);
+function heading2_(content) {
+  return {
+    object: 'block', type: 'heading_2',
+    heading_2: { rich_text: [{ text: { content: content } }] },
+  };
+}
+
+function paragraph_(content) {
+  return {
+    object: 'block', type: 'paragraph',
+    paragraph: { rich_text: [{ text: { content: content } }] },
+  };
+}
+
+// Notion rich_text は 2000 文字制限
+function chunkText_(text) {
+  var chunks = [];
+  for (var i = 0; i < text.length; i += 1900) {
+    chunks.push(text.slice(i, i + 1900));
   }
-  return sheet;
+  return chunks.length ? chunks : [''];
 }
 
 // ===== ユーティリティ =====
-function makeSheetTitle_(ss, date) {
-  const base    = Utilities.formatDate(date, Session.getScriptTimeZone(), DATE_FORMAT);
-  let   title   = base;
-  let   suffix  = 2;
-  // 同名があれば連番を付ける
-  while (ss.getSheetByName(title)) {
-    title = base + ' (' + suffix + ')';
-    suffix++;
-  }
-  return title;
+function notionHeaders_(token) {
+  return {
+    'Authorization':  'Bearer ' + token,
+    'Notion-Version': '2022-06-28',
+    'Content-Type':   'application/json',
+  };
 }
 
 function formatDuration_(sec) {
   if (!sec) return '0秒';
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  let str = '';
-  if (h) str += h + '時間';
-  if (m) str += m + '分';
-  if (s || !str) str += s + '秒';
-  return str;
+  var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return (h ? h + '時間' : '') + (m ? m + '分' : '') + (s || (!h && !m) ? s + '秒' : '');
 }
 
 function jsonOut_(obj) {
