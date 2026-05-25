@@ -20,85 +20,100 @@ body {
 h1 { font-size: 22px; margin-bottom: 4px; }
 .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+.card h2 { font-size: 16px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
 
-/* Progress */
-.progress { display: flex; align-items: flex-start; justify-content: center; gap: 0; margin-bottom: 22px; }
-.prog-item { display: flex; flex-direction: column; align-items: center; }
-.prog-dot {
-  width: 30px; height: 30px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700;
-  background: var(--border); color: var(--muted); transition: all .25s;
+/* Form fields */
+.field-block { margin-bottom: 18px; }
+.field-label {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 14px; font-weight: 600; margin-bottom: 8px;
 }
-.prog-dot.active { background: var(--accent); color: #0f172a; }
-.prog-dot.done   { background: var(--success); color: #0f172a; }
-.prog-label { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: center; }
-.prog-line { width: 48px; height: 2px; background: var(--border); margin-top: 14px; transition: background .25s; }
-.prog-line.done { background: var(--success); }
-
-/* Panels */
-.panel { display: none; }
-.panel.active { display: block; }
-.step-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
-.step-hint {
-  font-size: 13px; color: var(--muted);
-  background: rgba(56,189,248,.07); border: 1px solid rgba(56,189,248,.2);
-  border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; line-height: 1.6;
-}
-.step-hint strong { color: var(--accent); }
-.step-hint .eg { display: block; margin-top: 6px; font-style: italic; }
-
-/* Buttons */
-.btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: var(--accent); color: #0f172a;
-  border: 0; padding: 12px 20px; font-size: 15px; font-weight: 600;
-  border-radius: 8px; cursor: pointer; min-height: 48px; transition: opacity .15s;
-}
-.btn:hover { opacity: .88; }
-.btn:disabled { opacity: .38; cursor: not-allowed; }
-.btn-danger  { background: var(--danger);  color: white; }
-.btn-ghost   { background: transparent; color: var(--text); border: 1px solid var(--border); }
-.btn-success { background: var(--success); color: #0f172a; }
-.btn-sm      { padding: 8px 14px; font-size: 13px; min-height: 38px; }
-.btn-row     { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
-.spacer      { flex: 1; }
-
-/* Recording */
-.rec-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-.rec-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.dot.live { background: var(--danger); animation: blink 1s ease-in-out infinite; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
-.timer { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 48px; }
-.meter-wrap { width: 80px; height: 6px; background: #0f172a; border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
-.meter-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--success), var(--accent), var(--danger)); transition: width .08s; }
-
-/* Transcript */
-.transcript {
-  min-height: 64px; max-height: 160px; overflow-y: auto;
-  padding: 12px; background: #0f172a;
-  border: 1px dashed var(--border); border-radius: 8px;
-  font-size: 14px; line-height: 1.55;
-  white-space: pre-wrap; word-break: break-word; margin-bottom: 12px;
-}
-.transcript .interim { color: var(--muted); }
-.transcript .ph { color: var(--muted); font-style: italic; }
-
-/* Input fields */
+.field-label .hint { font-size: 11px; font-weight: 400; color: var(--muted); }
 .field {
   width: 100%; background: #0f172a;
   border: 1px solid var(--border); border-radius: 8px;
   padding: 11px 13px; color: var(--text); font-size: 15px;
 }
 .field:focus { outline: none; border-color: var(--accent); }
-.field-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: block; }
 
-/* Saving */
+/* Inline rec for client name */
+.inline-rec { display: flex; gap: 8px; }
+.inline-rec .field { flex: 1; }
+.rec-btn-sm {
+  background: var(--accent); color: #0f172a;
+  border: 0; padding: 0 14px; font-size: 14px; font-weight: 600;
+  border-radius: 8px; cursor: pointer; min-height: 44px;
+  white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;
+  transition: opacity .15s;
+}
+.rec-btn-sm:hover { opacity: .88; }
+.rec-btn-sm:disabled { opacity: .4; cursor: not-allowed; }
+.rec-btn-sm.recording { background: var(--danger); color: white; animation: pulse 1.2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+
+/* Content rec area */
+.content-rec {
+  background: #0f172a; border: 1px dashed var(--border);
+  border-radius: 8px; padding: 14px;
+}
+.rec-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.rec-btn-lg {
+  background: var(--accent); color: #0f172a;
+  border: 0; padding: 12px 22px; font-size: 15px; font-weight: 700;
+  border-radius: 8px; cursor: pointer; min-height: 48px;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: opacity .15s;
+}
+.rec-btn-lg:hover { opacity: .88; }
+.rec-btn-lg:disabled { opacity: .4; cursor: not-allowed; }
+.rec-btn-lg.recording { background: var(--danger); color: white; }
+.stop-btn { background: var(--danger); color: white; border: 0; padding: 12px 22px; font-size: 15px; font-weight: 700; border-radius: 8px; cursor: pointer; min-height: 48px; }
+.stop-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.rec-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.live { background: var(--danger); animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+.timer { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 48px; }
+
+.transcript {
+  min-height: 80px; max-height: 220px; overflow-y: auto;
+  padding: 10px 12px; background: rgba(15,23,42,.6);
+  border-radius: 6px; font-size: 14px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-word;
+}
+.transcript .interim { color: var(--muted); }
+.transcript .ph { color: var(--muted); font-style: italic; }
+
+/* Save button */
+.save-area { padding-top: 6px; }
+.save-btn {
+  width: 100%; background: var(--success); color: #0f172a;
+  border: 0; padding: 16px; font-size: 16px; font-weight: 700;
+  border-radius: 10px; cursor: pointer; min-height: 56px;
+  transition: opacity .15s;
+}
+.save-btn:hover { opacity: .9; }
+.save-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+/* Saving overlay */
+.saving-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,.92);
+  display: none; align-items: center; justify-content: center;
+  z-index: 999; padding: 20px;
+}
+.saving-overlay.show { display: flex; }
+.saving-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px; max-width: 400px; width: 100%;
+}
+.saving-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; text-align: center; }
 .saving-list { display: flex; flex-direction: column; gap: 14px; }
 .saving-row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .saving-icon { font-size: 20px; width: 28px; text-align: center; }
 .saving-row.pending { color: var(--muted); }
+.saving-done-btn { margin-top: 18px; width: 100%; background: var(--accent); color: #0f172a; border: 0; padding: 12px; font-size: 14px; font-weight: 700; border-radius: 8px; cursor: pointer; display: none; }
+.saving-done-btn.show { display: block; }
 
 /* List */
 .list-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
@@ -119,6 +134,10 @@ h1 { font-size: 22px; margin-bottom: 4px; }
 .mtg-audio  { width: 100%; height: 32px; margin: 6px 0; display: block; }
 .mtg-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .empty      { text-align: center; color: var(--muted); padding: 28px; font-size: 14px; }
+
+.btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 8px 14px; font-size: 13px; border-radius: 6px; cursor: pointer; }
+.btn-ghost:hover { opacity: .8; }
+
 .notice     { background: rgba(239,68,68,.1); border: 1px solid var(--danger); color: #fecaca; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
 .info       { background: rgba(56,189,248,.1); border: 1px solid var(--accent); color: #bae6fd; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; line-height: 1.5; }
 
@@ -126,7 +145,6 @@ h1 { font-size: 22px; margin-bottom: 4px; }
 details > summary { cursor: pointer; font-size: 14px; font-weight: 600; user-select: none; padding: 2px 0; }
 details[open] > summary { margin-bottom: 14px; }
 .set-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-.set-row label { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .set-row input[type="password"], .set-row select {
   flex: 1; min-width: 200px; background: #0f172a;
   border: 1px solid var(--border); border-radius: 6px;
@@ -135,12 +153,13 @@ details[open] > summary { margin-bottom: 14px; }
 .flash { font-size: 12px; color: var(--success); opacity: 0; transition: opacity .2s; }
 .flash.show { opacity: 1; }
 .set-note { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+.set-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block; }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>🎙️ MTG 録音メモ</h1>
-  <p class="subtitle">① クライアント名 → ② MTG日 → ③ 内容を話す → Notion に自動保存</p>
+  <p class="subtitle">クライアント名 → 日付 → MTG内容を録音 → Notion に自動保存</p>
 
   <div id="noticeEl" class="notice" style="display:none;"></div>
   <div id="infoEl"   class="info"   style="display:none;"></div>
@@ -150,7 +169,7 @@ details[open] > summary { margin-bottom: 14px; }
     <details id="settingsDetails">
       <summary>⚙️ 設定</summary>
       <div style="margin-bottom:12px;">
-        <span class="field-label">Gemini API キー <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;">▶ 取得</a></span>
+        <span class="set-label">Gemini API キー <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;">▶ 取得</a></span>
         <div class="set-row">
           <input id="apiKeyInput" type="password" placeholder="AIza..." autocomplete="off">
           <select id="modelSelect">
@@ -161,130 +180,67 @@ details[open] > summary { margin-bottom: 14px; }
         </div>
       </div>
       <div>
-        <span class="field-label">Notion Apps Script URL <a href="https://github.com/coolura/voice-transcriber/blob/main/apps-script/Code.gs" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;">▶ 設定手順</a></span>
+        <span class="set-label">Notion Apps Script URL <a href="https://github.com/coolura/voice-transcriber/blob/main/apps-script/Code.gs" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;">▶ 設定手順</a></span>
         <div class="set-row">
           <input id="notionUrlInput" type="password" placeholder="https://script.google.com/macros/s/..." autocomplete="off">
         </div>
-        <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:10px;">
-          <input type="checkbox" id="autoPipelineToggle">
-          録音完了後に自動で「要約 → Notion 保存」を実行
-        </label>
       </div>
-      <div class="btn-row" style="margin-top:4px;">
-        <button class="btn btn-ghost btn-sm" id="saveSettingsBtn">💾 保存</button>
-        <button class="btn btn-ghost btn-sm" id="testNotionBtn">🔗 接続テスト</button>
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
+        <button class="btn-ghost" id="saveSettingsBtn">💾 保存</button>
+        <button class="btn-ghost" id="testNotionBtn">🔗 接続テスト</button>
         <span class="flash" id="settingsFlash">✓ 保存しました</span>
       </div>
       <p class="set-note">キーはこのブラウザの localStorage にのみ保存。外部送信は要約・Notion 保存の時だけです。</p>
     </details>
   </div>
 
-  <!-- Wizard -->
-  <div class="card" id="wizardCard">
-    <!-- Progress indicator -->
-    <div class="progress">
-      <div class="prog-item">
-        <div class="prog-dot active" id="dot1">1</div>
-        <div class="prog-label">クライアント</div>
+  <!-- Recording form (single page) -->
+  <div class="card">
+    <h2>📝 新しい MTG 録音</h2>
+
+    <!-- Client Name -->
+    <div class="field-block">
+      <div class="field-label">
+        <span>👤 クライアント名</span>
+        <span class="hint">話す or 直接入力</span>
       </div>
-      <div class="prog-line" id="line12"></div>
-      <div class="prog-item">
-        <div class="prog-dot" id="dot2">2</div>
-        <div class="prog-label">MTG日</div>
-      </div>
-      <div class="prog-line" id="line23"></div>
-      <div class="prog-item">
-        <div class="prog-dot" id="dot3">3</div>
-        <div class="prog-label">内容</div>
+      <div class="inline-rec">
+        <input class="field" id="clientField" type="text" placeholder="例：山田商事">
+        <button class="rec-btn-sm" id="clientRecBtn">🎙️ 録音</button>
       </div>
     </div>
 
-    <!-- Step 1: Client name -->
-    <div class="panel active" id="panel1">
-      <div class="step-title">👤 クライアント名</div>
-      <div class="step-hint">
-        🗣️ <strong>話し方:</strong>
-        クライアントの名前だけをはっきり話してください。
-        <span class="eg">例:「山田商事です」「株式会社○○の田中さん」</span>
+    <!-- MTG Date -->
+    <div class="field-block">
+      <div class="field-label">
+        <span>📅 MTG 日</span>
+        <span class="hint">今日が自動入力</span>
       </div>
-      <div class="rec-row">
-        <button class="btn" id="s1RecBtn">🎙️ 録音</button>
-        <button class="btn btn-danger" id="s1StopBtn" disabled>■ 完了</button>
-        <div class="rec-status">
-          <div class="dot" id="s1Dot"></div>
-          <span class="timer" id="s1Timer">00:00</span>
-          <div class="meter-wrap"><div class="meter-fill" id="s1Meter"></div></div>
-        </div>
-      </div>
-      <div class="transcript" id="s1Trans"><span class="ph">録音すると文字が表示されます…</span></div>
-      <label class="field-label">クライアント名（修正できます）</label>
-      <input class="field" id="clientField" type="text" placeholder="山田商事">
-      <div class="btn-row">
-        <div class="spacer"></div>
-        <button class="btn" id="s1NextBtn" disabled>次へ →</button>
-      </div>
-    </div>
-
-    <!-- Step 2: Date -->
-    <div class="panel" id="panel2">
-      <div class="step-title">📅 MTG日</div>
-      <div class="step-hint">
-        📌 今日の日付が自動で入っています。<br>
-        別の日付の場合は変更してください。
-      </div>
-      <label class="field-label">MTG の日付</label>
       <input class="field" id="dateField" type="date">
-      <div class="btn-row">
-        <button class="btn btn-ghost" id="s2BackBtn">← 戻る</button>
-        <div class="spacer"></div>
-        <button class="btn" id="s2NextBtn">次へ →</button>
-      </div>
     </div>
 
-    <!-- Step 3: Content -->
-    <div class="panel" id="panel3">
-      <div class="step-title">🗣️ MTG 内容</div>
-      <div class="step-hint">
-        📋 <strong>話すルール:</strong>
-        MTG で話した内容を<strong>自由に</strong>話してください。<br>
-        議題・決定事項・次のアクションなど、できるだけ詳しく。
-        <span class="eg">例:「今日は新商品の提案をしました。先方から予算の懸念があり、来週再提案することになりました。」</span>
+    <!-- MTG Content -->
+    <div class="field-block">
+      <div class="field-label">
+        <span>🗣️ MTG 内容</span>
+        <span class="hint">録音すると文字起こしされます</span>
       </div>
-      <div class="rec-row">
-        <button class="btn" id="s3RecBtn">🎙️ 録音開始</button>
-        <button class="btn btn-danger" id="s3StopBtn" disabled>■ 完了</button>
-        <div class="rec-status">
-          <div class="dot" id="s3Dot"></div>
-          <span class="timer" id="s3Timer">00:00</span>
-          <div class="meter-wrap"><div class="meter-fill" id="s3Meter"></div></div>
+      <div class="content-rec">
+        <div class="rec-row">
+          <button class="rec-btn-lg" id="contentRecBtn">🎙️ 録音開始</button>
+          <button class="stop-btn" id="contentStopBtn" disabled>■ 停止</button>
+          <div class="rec-status">
+            <div class="dot" id="contentDot"></div>
+            <span class="timer" id="contentTimer">00:00</span>
+          </div>
         </div>
-      </div>
-      <div class="transcript" id="s3Trans"><span class="ph">録音すると文字が表示されます…</span></div>
-      <div class="btn-row">
-        <button class="btn btn-ghost" id="s3BackBtn">← 戻る</button>
-        <div class="spacer"></div>
-        <button class="btn btn-success" id="s3SaveBtn" disabled>✨ 要約 &amp; Notion 保存</button>
+        <div class="transcript" id="contentTrans"><span class="ph">「録音開始」を押して MTG 内容を話してください…</span></div>
       </div>
     </div>
 
-    <!-- Saving -->
-    <div class="panel" id="panelSaving">
-      <div class="step-title" style="margin-bottom:20px;">⏳ 処理中…</div>
-      <div class="saving-list">
-        <div class="saving-row pending" id="rowGemini"><span class="saving-icon">○</span><span>Gemini で AI 要約中…</span></div>
-        <div class="saving-row pending" id="rowNotion"><span class="saving-icon">○</span><span>Notion に送信中…</span></div>
-        <div class="saving-row pending" id="rowLocal"> <span class="saving-icon">○</span><span>ブラウザに保存中…</span></div>
-      </div>
-    </div>
-
-    <!-- Done -->
-    <div class="panel" id="panelDone">
-      <div style="text-align:center;padding:24px 0;">
-        <div style="font-size:52px;margin-bottom:12px;">✅</div>
-        <div style="font-size:18px;font-weight:700;margin-bottom:6px;">保存完了！</div>
-        <div style="font-size:13px;color:var(--muted);margin-bottom:22px;">Notion に送信しました。</div>
-        <button class="btn" id="newRecBtn">＋ 新しい録音</button>
-      </div>
+    <!-- Save -->
+    <div class="save-area">
+      <button class="save-btn" id="saveBtn" disabled>✨ AI要約 &amp; Notion 保存</button>
     </div>
   </div>
 
@@ -294,10 +250,23 @@ details[open] > summary { margin-bottom: 14px; }
       <h2>📋 録音履歴 <span class="badge" id="cntBadge">0</span></h2>
       <div style="display:flex;gap:8px;">
         <input class="search" id="searchInput" type="text" placeholder="クライアント名…">
-        <button class="btn btn-ghost btn-sm" id="clearAllBtn">全削除</button>
+        <button class="btn-ghost" id="clearAllBtn">全削除</button>
       </div>
     </div>
     <div id="listEl"></div>
+  </div>
+</div>
+
+<!-- Saving overlay -->
+<div class="saving-overlay" id="savingOverlay">
+  <div class="saving-box">
+    <div class="saving-title" id="savingTitle">⏳ 処理中…</div>
+    <div class="saving-list">
+      <div class="saving-row pending" id="rowGemini"><span class="saving-icon">○</span><span>Gemini で AI 要約中…</span></div>
+      <div class="saving-row pending" id="rowNotion"><span class="saving-icon">○</span><span>Notion に送信中…</span></div>
+      <div class="saving-row pending" id="rowLocal"> <span class="saving-icon">○</span><span>ブラウザに保存中…</span></div>
+    </div>
+    <button class="saving-done-btn" id="savingDoneBtn">+ 次の録音へ</button>
   </div>
 </div>
 
@@ -335,43 +304,40 @@ details[open] > summary { margin-bottom: 14px; }
   const dbGetAll = () => dbRun('readonly',  s => s.getAll());
   const dbClear  = () => dbRun('readwrite', s => s.clear());
 
-  /* ===== localStorage keys ===== */
-  const LS = { KEY: 'gemini_api_key', MODEL: 'gemini_model', NOTION: 'sheet_webapp_url', AUTO: 'auto_pipeline' };
+  /* ===== localStorage ===== */
+  const LS = { KEY:'gemini_api_key', MODEL:'gemini_model', NOTION:'sheet_webapp_url' };
 
-  /* ===== DOM refs ===== */
+  /* ===== DOM ===== */
   const $ = id => document.getElementById(id);
   const noticeEl = $('noticeEl'), infoEl = $('infoEl');
-
   function showError(msg) { noticeEl.textContent = msg; noticeEl.style.display = 'block'; setTimeout(() => noticeEl.style.display = 'none', 8000); }
-  function showInfo(msg)  { infoEl.innerHTML = msg;    infoEl.style.display  = 'block'; }
+  function showInfo(msg)  { infoEl.innerHTML = msg; infoEl.style.display = 'block'; }
   function hideNotice()   { noticeEl.style.display = 'none'; }
 
   /* ===== Settings ===== */
   const apiKeyInput = $('apiKeyInput'), modelSelect = $('modelSelect'),
-        notionUrlInput = $('notionUrlInput'), autoPipelineToggle = $('autoPipelineToggle'),
+        notionUrlInput = $('notionUrlInput'),
         saveSettingsBtn = $('saveSettingsBtn'), testNotionBtn = $('testNotionBtn'),
         settingsFlash = $('settingsFlash'), settingsDetails = $('settingsDetails');
 
   apiKeyInput.value    = localStorage.getItem(LS.KEY)   || '';
   modelSelect.value    = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
   notionUrlInput.value = localStorage.getItem(LS.NOTION) || '';
-  autoPipelineToggle.checked = localStorage.getItem(LS.AUTO) === '1';
   if (!apiKeyInput.value || !notionUrlInput.value) settingsDetails.open = true;
 
   saveSettingsBtn.addEventListener('click', () => {
     localStorage.setItem(LS.KEY,    apiKeyInput.value.trim());
     localStorage.setItem(LS.MODEL,  modelSelect.value);
     localStorage.setItem(LS.NOTION, notionUrlInput.value.trim());
-    localStorage.setItem(LS.AUTO,   autoPipelineToggle.checked ? '1' : '0');
     settingsFlash.classList.add('show');
     setTimeout(() => settingsFlash.classList.remove('show'), 1500);
   });
   testNotionBtn.addEventListener('click', async () => {
     testNotionBtn.disabled = true; testNotionBtn.textContent = '送信中…';
     try {
-      await sendToNotion({ id: 'test_' + Date.now(), clientName: 'テスト', mtgDate: todayStr(), text: '接続テスト', summary: 'Notion 接続テスト成功', durationSec: 0, createdAt: new Date().toISOString() });
+      await sendToNotion({ id:'test_'+Date.now(), clientName:'テスト', mtgDate:todayStr(), text:'接続テスト', summary:'Notion 接続テスト成功', durationSec:0, createdAt:new Date().toISOString() });
       testNotionBtn.textContent = '✓ 成功';
-    } catch (err) { showError('Notion テスト失敗: ' + err.message); testNotionBtn.textContent = '接続テスト'; }
+    } catch (err) { showError('Notion テスト失敗: ' + err.message); testNotionBtn.textContent = '🔗 接続テスト'; }
     setTimeout(() => { testNotionBtn.textContent = '🔗 接続テスト'; testNotionBtn.disabled = false; }, 2000);
   });
 
@@ -379,29 +345,28 @@ details[open] > summary { margin-bottom: 14px; }
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRec) showInfo('⚠️ このブラウザは音声認識に非対応です。<strong>Chrome または Edge</strong> をお使いください。');
 
-  /* ===== Wizard state ===== */
-  const wiz = { clientName: '', mtgDate: todayStr(), contentText: '', contentAudio: null, contentType: '', durationSec: 0 };
+  /* ===== State ===== */
+  const state = {
+    clientName: '',
+    mtgDate:    todayStr(),
+    contentText:'',
+    contentAudio: null,
+    contentType:  '',
+    durationSec:  0,
+    isRecording:  null, // 'client' | 'content' | null
+  };
 
-  const dots  = [null, $('dot1'), $('dot2'), $('dot3')];
-  const lines = { 12: $('line12'), 23: $('line23') };
-  const panels = { 1: $('panel1'), 2: $('panel2'), 3: $('panel3'), saving: $('panelSaving'), done: $('panelDone') };
-
-  function showPanel(key) {
-    Object.values(panels).forEach(p => p.classList.remove('active'));
-    if (panels[key]) panels[key].classList.add('active');
-    const n = parseInt(key);
-    [1,2,3].forEach(i => {
-      dots[i].className = 'prog-dot' + (i < n ? ' done' : i === n ? ' active' : '');
-    });
-    lines[12].className = 'prog-line' + (n > 1 ? ' done' : '');
-    lines[23].className = 'prog-line' + (n > 2 ? ' done' : '');
-  }
-  showPanel(1);
-
-  /* ===== Recording helpers ===== */
+  /* ===== Recording infrastructure ===== */
   let recognition = null, mediaStream = null, mediaRecorder = null, recChunks = [];
-  let timerInterval = null, audioCtx = null, analyser = null, meterRaf = null;
-  let stopped = false;
+  let timerInterval = null, stopped = false;
+
+  function stopAll() {
+    stopped = true;
+    if (recognition)   { try { recognition.stop(); }  catch(_){} recognition = null; }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    if (mediaStream)   { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
 
   function startSpeechRec(onFinal, onInterim) {
     if (!SpeechRec) { showError('Web Speech API 非対応。Chrome/Edge をお使いください'); return; }
@@ -421,177 +386,162 @@ details[open] > summary { margin-bottom: 14px; }
       console.error('SpeechRec error:', e);
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         showError('マイクの利用が許可されていません。ブラウザの設定からマイク権限を許可してください。');
-      } else if (e.error === 'no-speech') {
-        // ignore - onend で再起動される
-      } else if (e.error !== 'aborted') {
+      } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
         showError('音声認識エラー: ' + e.error);
       }
     };
     recognition.onend = () => { if (!stopped) { try { recognition.start(); } catch(_){} } };
-    try {
-      recognition.start();
-      console.log('SpeechRec started');
-    } catch(err) {
-      console.error('SpeechRec start failed:', err);
-      showError('音声認識の起動に失敗: ' + err.message);
-    }
+    try { recognition.start(); console.log('SpeechRec started'); }
+    catch(err) { console.error('SpeechRec start failed:', err); showError('音声認識の起動に失敗: ' + err.message); }
   }
 
-  function stopAll() {
-    stopped = true;
-    if (recognition)    { try { recognition.stop(); }  catch(_){} recognition = null; }
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-    if (mediaStream)    { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
-    if (meterRaf)       { cancelAnimationFrame(meterRaf); meterRaf = null; }
-    if (audioCtx)       { audioCtx.close().catch(()=>{}); audioCtx = null; }
-    if (timerInterval)  { clearInterval(timerInterval); timerInterval = null; }
-  }
-
-  function runMeter(stream, fillEl) {
-    try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const src = audioCtx.createMediaStreamSource(stream);
-      analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
-      src.connect(analyser);
-      const buf = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        analyser.getByteTimeDomainData(buf);
-        let s = 0; buf.forEach(v => { const d = (v-128)/128; s += d*d; });
-        fillEl.style.width = Math.min(100, Math.round(Math.sqrt(s/buf.length)*300)) + '%';
-        meterRaf = requestAnimationFrame(tick);
-      };
-      tick();
-    } catch(_){}
-  }
-
-  function runTimer(timerEl) {
+  function runTimer(el) {
     const t0 = Date.now();
-    timerEl.textContent = '00:00';
+    el.textContent = '00:00';
     timerInterval = setInterval(() => {
       const s = Math.floor((Date.now()-t0)/1000);
-      timerEl.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+      el.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
     }, 500);
     return t0;
   }
 
-  async function getMic() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaStream = stream;
-    return stream;
-  }
+  /* ===== Client Name Recording ===== */
+  const clientField  = $('clientField');
+  const clientRecBtn = $('clientRecBtn');
+  let clientFinal = '';
 
-  /* ===== Step 1 ===== */
-  const s1RecBtn = $('s1RecBtn'), s1StopBtn = $('s1StopBtn'),
-        s1Dot = $('s1Dot'), s1Timer = $('s1Timer'), s1Meter = $('s1Meter'),
-        s1Trans = $('s1Trans'), clientField = $('clientField'), s1NextBtn = $('s1NextBtn');
-  let s1FinalText = '';
-
-  s1RecBtn.addEventListener('click', () => {
+  clientRecBtn.addEventListener('click', () => {
+    if (state.isRecording === 'client') {
+      // stop
+      stopAll();
+      clientRecBtn.classList.remove('recording');
+      clientRecBtn.textContent = '🎙️ 録音';
+      state.isRecording = null;
+      if (clientFinal.trim()) clientField.value = clientFinal.trim();
+      updateSaveBtn();
+      return;
+    }
+    if (state.isRecording) { showError('別の録音が動作中です。先に停止してください'); return; }
     hideNotice();
-    s1FinalText = '';
-    s1Trans.innerHTML = '<span class="ph">🎤 マイクに向かって話してください…</span>';
-    s1RecBtn.disabled = true; s1StopBtn.disabled = false;
-    s1Dot.classList.add('live');
-    runTimer(s1Timer);
-    // ステップ1は SpeechRecognition のみ使用（マイク競合を避けるため getUserMedia は使わない）
+    clientFinal = '';
+    state.isRecording = 'client';
+    clientRecBtn.classList.add('recording');
+    clientRecBtn.textContent = '■ 停止';
+    clientField.value = '';
+    clientField.placeholder = '🎤 話してください…';
     startSpeechRec(
-      fin  => { s1FinalText = fin; renderT(s1Trans, fin, ''); if (fin.trim()) { clientField.value = fin.trim(); s1NextBtn.disabled = false; } },
-      intr => renderT(s1Trans, s1FinalText, intr)
+      fin  => {
+        clientFinal = fin;
+        if (fin.trim()) { clientField.value = fin.trim(); updateSaveBtn(); }
+      },
+      intr => {
+        if (intr) clientField.value = (clientFinal + intr).trim();
+      }
     );
   });
 
-  s1StopBtn.addEventListener('click', () => {
-    stopAll();
-    s1Dot.classList.remove('live');
-    s1RecBtn.disabled = false; s1StopBtn.disabled = true;
-    if (s1FinalText.trim()) { clientField.value = s1FinalText.trim(); s1NextBtn.disabled = false; }
-  });
+  clientField.addEventListener('input', () => { state.clientName = clientField.value.trim(); updateSaveBtn(); });
 
-  clientField.addEventListener('input', () => { s1NextBtn.disabled = !clientField.value.trim(); });
+  /* ===== Date ===== */
+  const dateField = $('dateField');
+  dateField.value = todayStr();
+  dateField.addEventListener('change', () => { state.mtgDate = dateField.value || todayStr(); });
 
-  s1NextBtn.addEventListener('click', () => {
-    stopAll();
-    wiz.clientName = clientField.value.trim();
-    $('dateField').value = wiz.mtgDate;
-    showPanel(2);
-  });
+  /* ===== Content Recording ===== */
+  const contentRecBtn  = $('contentRecBtn'),
+        contentStopBtn = $('contentStopBtn'),
+        contentDot     = $('contentDot'),
+        contentTimer   = $('contentTimer'),
+        contentTrans   = $('contentTrans');
+  let contentFinal = '', contentStartedAt = null;
 
-  /* ===== Step 2 ===== */
-  $('dateField').value = todayStr();
-  $('s2BackBtn').addEventListener('click', () => showPanel(1));
-  $('s2NextBtn').addEventListener('click', () => {
-    wiz.mtgDate = $('dateField').value || todayStr();
-    showPanel(3);
-  });
-
-  /* ===== Step 3 ===== */
-  const s3RecBtn = $('s3RecBtn'), s3StopBtn = $('s3StopBtn'),
-        s3Dot = $('s3Dot'), s3Timer = $('s3Timer'), s3Meter = $('s3Meter'),
-        s3Trans = $('s3Trans'), s3SaveBtn = $('s3SaveBtn');
-  let s3FinalText = '', s3StartedAt = null;
-
-  $('s3BackBtn').addEventListener('click', () => { stopAll(); s3Dot.classList.remove('live'); s3RecBtn.disabled = false; s3StopBtn.disabled = true; showPanel(2); });
-
-  s3RecBtn.addEventListener('click', async () => {
+  contentRecBtn.addEventListener('click', async () => {
+    if (state.isRecording) { showError('別の録音が動作中です。先に停止してください'); return; }
     hideNotice();
-    s3FinalText = ''; wiz.contentAudio = null; recChunks = [];
-    s3Trans.innerHTML = '<span class="ph">認識中…</span>';
-    try { await getMic(); } catch(err) { showError('マイクを許可してください: ' + err.message); return; }
+    contentFinal = ''; state.contentAudio = null; recChunks = [];
+    contentTrans.innerHTML = '<span class="ph">🎤 認識中…</span>';
+
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch(err) { showError('マイクを許可してください: ' + err.message); return; }
 
     const mime = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || '';
     mediaRecorder = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : {});
     mediaRecorder.ondataavailable = e => { if (e.data?.size > 0) recChunks.push(e.data); };
-    mediaRecorder.onstop = () => { wiz.contentAudio = new Blob(recChunks, { type: mediaRecorder.mimeType || 'audio/webm' }); wiz.contentType = mediaRecorder.mimeType || 'audio/webm'; };
+    mediaRecorder.onstop = () => { state.contentAudio = new Blob(recChunks, { type: mediaRecorder.mimeType || 'audio/webm' }); state.contentType = mediaRecorder.mimeType || 'audio/webm'; };
     mediaRecorder.start();
 
-    s3RecBtn.disabled = true; s3StopBtn.disabled = true; s3SaveBtn.disabled = true;
-    s3Dot.classList.add('live');
-    s3StartedAt = runTimer(s3Timer); runMeter(mediaStream, s3Meter);
+    state.isRecording = 'content';
+    contentRecBtn.disabled = true; contentStopBtn.disabled = false;
+    contentRecBtn.classList.add('recording');
+    contentRecBtn.textContent = '🔴 録音中…';
+    contentDot.classList.add('live');
+    contentStartedAt = runTimer(contentTimer);
+
     startSpeechRec(
-      fin  => { s3FinalText = fin; renderT(s3Trans, fin, ''); if (fin.trim()) s3SaveBtn.disabled = false; },
-      intr => renderT(s3Trans, s3FinalText, intr)
+      fin  => { contentFinal = fin; renderT(contentTrans, fin, ''); state.contentText = fin.trim(); updateSaveBtn(); },
+      intr => renderT(contentTrans, contentFinal, intr)
     );
-    setTimeout(() => { s3StopBtn.disabled = false; }, 1200);
   });
 
-  s3StopBtn.addEventListener('click', () => {
-    wiz.durationSec = Math.round((Date.now() - (s3StartedAt || Date.now())) / 1000);
-    wiz.contentText = s3FinalText.trim();
+  contentStopBtn.addEventListener('click', () => {
+    state.durationSec = Math.round((Date.now() - (contentStartedAt || Date.now())) / 1000);
+    state.contentText = contentFinal.trim();
     stopAll();
-    s3Dot.classList.remove('live'); s3RecBtn.disabled = false; s3StopBtn.disabled = true;
-    if (wiz.contentText) s3SaveBtn.disabled = false;
+    state.isRecording = null;
+    contentRecBtn.disabled = false; contentStopBtn.disabled = true;
+    contentRecBtn.classList.remove('recording');
+    contentRecBtn.textContent = '🎙️ 録音開始';
+    contentDot.classList.remove('live');
+    updateSaveBtn();
   });
 
-  s3SaveBtn.addEventListener('click', () => { if (!wiz.contentText) { showError('録音内容がありません'); return; } executePipeline(); });
+  /* ===== Save Button ===== */
+  const saveBtn = $('saveBtn');
+  function updateSaveBtn() {
+    const ok = state.clientName.length > 0 && state.contentText.length > 0 && !state.isRecording;
+    saveBtn.disabled = !ok;
+  }
+  saveBtn.addEventListener('click', () => executePipeline());
 
-  /* ===== Pipeline: Summarize → Notion → Save ===== */
+  /* ===== Pipeline ===== */
+  const overlay = $('savingOverlay');
+  const savingDoneBtn = $('savingDoneBtn');
+
   async function executePipeline() {
-    showPanel('saving'); hideNotice();
+    state.mtgDate = dateField.value || todayStr();
+    overlay.classList.add('show');
+    $('savingTitle').textContent = '⏳ 処理中…';
+    savingDoneBtn.classList.remove('show');
+    setSavRow('rowGemini', '⏳', 'Gemini で AI 要約中…', false);
+    setSavRow('rowNotion', '○', 'Notion に送信中…', true);
+    setSavRow('rowLocal',  '○', 'ブラウザに保存中…', true);
+
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
     let summary = '';
 
-    setSavRow('rowGemini', '⏳', 'Gemini で AI 要約中…', false);
     try {
-      summary = await geminiSummarize(wiz.contentText);
+      summary = await geminiSummarize(state.contentText);
       setSavRow('rowGemini', '✅', 'AI 要約完了', true);
     } catch(err) { setSavRow('rowGemini', '⚠️', 'AI 要約スキップ: ' + err.message, true); }
 
     setSavRow('rowNotion', '⏳', 'Notion に送信中…', false);
     let sentAt = null;
     try {
-      await sendToNotion({ id, clientName: wiz.clientName, mtgDate: wiz.mtgDate, text: wiz.contentText, summary, durationSec: wiz.durationSec, createdAt: new Date().toISOString() });
+      await sendToNotion({ id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, createdAt:new Date().toISOString() });
       sentAt = new Date().toISOString();
       setSavRow('rowNotion', '✅', 'Notion 送信完了', true);
     } catch(err) { setSavRow('rowNotion', '⚠️', 'Notion 送信失敗: ' + err.message, true); }
 
     setSavRow('rowLocal', '⏳', 'ブラウザに保存中…', false);
     try {
-      await dbAdd({ id, clientName: wiz.clientName, mtgDate: wiz.mtgDate, text: wiz.contentText, summary, durationSec: wiz.durationSec, audioBlob: wiz.contentAudio, audioType: wiz.contentType, createdAt: new Date().toISOString(), sentAt });
+      await dbAdd({ id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, audioBlob:state.contentAudio, audioType:state.contentType, createdAt:new Date().toISOString(), sentAt });
       setSavRow('rowLocal', '✅', 'ブラウザに保存完了', true);
     } catch(err) { setSavRow('rowLocal', '⚠️', '保存失敗: ' + err.message, true); }
 
     await renderList();
-    setTimeout(() => showPanel('done'), 500);
+    $('savingTitle').textContent = '✅ 保存完了！';
+    savingDoneBtn.classList.add('show');
   }
 
   function setSavRow(id, icon, text, done) {
@@ -601,22 +551,28 @@ details[open] > summary { margin-bottom: 14px; }
     el.classList.toggle('pending', !done);
   }
 
-  $('newRecBtn').addEventListener('click', resetWizard);
-  function resetWizard() {
-    Object.assign(wiz, { clientName:'', mtgDate: todayStr(), contentText:'', contentAudio:null, contentType:'', durationSec:0 });
-    s1FinalText = ''; s3FinalText = '';
-    s1Trans.innerHTML = '<span class="ph">録音すると文字が表示されます…</span>';
-    s3Trans.innerHTML = '<span class="ph">録音すると文字が表示されます…</span>';
-    clientField.value = ''; $('dateField').value = todayStr();
-    s1NextBtn.disabled = true; s3SaveBtn.disabled = true; s3StopBtn.disabled = true;
-    s1RecBtn.disabled = false; s3RecBtn.disabled = false;
-    [$('s1Timer'),$('s3Timer')].forEach(t => t.textContent = '00:00');
-    [$('s1Meter'),$('s3Meter')].forEach(m => m.style.width = '0%');
-    s1Dot.classList.remove('live'); s3Dot.classList.remove('live');
-    showPanel(1);
+  savingDoneBtn.addEventListener('click', () => {
+    overlay.classList.remove('show');
+    resetForm();
+  });
+
+  function resetForm() {
+    state.clientName = '';
+    state.mtgDate    = todayStr();
+    state.contentText = '';
+    state.contentAudio = null;
+    state.durationSec  = 0;
+    clientField.value = '';
+    clientField.placeholder = '例：山田商事';
+    clientFinal = '';
+    contentFinal = '';
+    contentTrans.innerHTML = '<span class="ph">「録音開始」を押して MTG 内容を話してください…</span>';
+    contentTimer.textContent = '00:00';
+    dateField.value = todayStr();
+    saveBtn.disabled = true;
   }
 
-  /* ===== Gemini API ===== */
+  /* ===== Gemini ===== */
   async function geminiSummarize(text) {
     const key   = (localStorage.getItem(LS.KEY) || '').trim();
     const model = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
@@ -638,8 +594,8 @@ details[open] > summary { margin-bottom: 14px; }
 ${text}
 """`;
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 1024 } }),
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.2, maxOutputTokens:1024} }),
     });
     if (!res.ok) { const j = await res.json().catch(()=>{}); throw new Error(`Gemini ${res.status}: ${j?.error?.message||res.statusText}`); }
     const data = await res.json();
@@ -648,11 +604,11 @@ ${text}
     return out;
   }
 
-  /* ===== Notion send ===== */
+  /* ===== Notion ===== */
   async function sendToNotion(payload) {
     const url = (localStorage.getItem(LS.NOTION) || '').trim();
     if (!url) throw new Error('Notion の Apps Script URL が未設定です');
-    const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
+    const res = await fetch(url, { method:'POST', body:JSON.stringify(payload), redirect:'follow' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json().catch(()=>({}));
     if (json?.ok === false) throw new Error(json.error || 'Unknown error');
@@ -690,9 +646,9 @@ ${text}
           ${e.sentAt  ? `<div class="mtg-sent">🗒️ Notion 送信済 (${new Date(e.sentAt).toLocaleString('ja-JP')})</div>` : ''}
           ${audioHtml}
           <div class="mtg-actions">
-            <button class="btn btn-ghost btn-sm" data-act="send" data-id="${e.id}">${e.sentAt?'再送信':'Notion 送信'}</button>
-            <button class="btn btn-ghost btn-sm" data-act="copy" data-id="${e.id}">コピー</button>
-            <button class="btn btn-ghost btn-sm" data-act="del"  data-id="${e.id}">削除</button>
+            <button class="btn-ghost" data-act="send" data-id="${e.id}">${e.sentAt?'再送信':'Notion 送信'}</button>
+            <button class="btn-ghost" data-act="copy" data-id="${e.id}">コピー</button>
+            <button class="btn-ghost" data-act="del"  data-id="${e.id}">削除</button>
           </div>
         </div>`;
     }).join('');
@@ -715,7 +671,7 @@ ${text}
     } else if (act === 'send') {
       btn.disabled = true; btn.textContent = '送信中…';
       try {
-        await sendToNotion({ id: entry.id, clientName: entry.clientName||'', mtgDate: entry.mtgDate||'', text: entry.text||'', summary: entry.summary||'', durationSec: entry.durationSec||0, createdAt: entry.createdAt });
+        await sendToNotion({ id:entry.id, clientName:entry.clientName||'', mtgDate:entry.mtgDate||'', text:entry.text||'', summary:entry.summary||'', durationSec:entry.durationSec||0, createdAt:entry.createdAt });
         entry.sentAt = new Date().toISOString(); await dbPut(entry); await renderList();
       } catch(err) { showError('Notion 送信失敗: ' + err.message); btn.disabled = false; btn.textContent = 'Notion 送信'; }
     }
@@ -730,7 +686,7 @@ ${text}
 
   /* ===== Helpers ===== */
   function renderT(el, fin, intr) {
-    if (!fin && !intr) { el.innerHTML = '<span class="ph">認識中…</span>'; return; }
+    if (!fin && !intr) { el.innerHTML = '<span class="ph">🎤 認識中…</span>'; return; }
     el.innerHTML = esc(fin) + (intr ? `<span class="interim">${esc(intr)}</span>` : '');
   }
   function todayStr() {
