@@ -96,6 +96,17 @@ h1 { font-size: 22px; margin-bottom: 4px; }
 .save-btn:hover { opacity: .9; }
 .save-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
 
+.dest-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.dest-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #0f172a; border: 2px solid var(--border);
+  border-radius: 8px; padding: 10px 14px; cursor: pointer;
+  font-size: 14px; transition: border-color .15s, background .15s;
+  min-height: 44px;
+}
+.dest-chip:has(input:checked) { border-color: var(--accent); background: rgba(56,189,248,.1); }
+.dest-chip input { margin: 0; cursor: pointer; }
+
 /* Saving overlay */
 .saving-overlay {
   position: fixed; inset: 0; background: rgba(15,23,42,.92);
@@ -238,9 +249,21 @@ details[open] > summary { margin-bottom: 14px; }
       </div>
     </div>
 
+    <!-- Destination -->
+    <div class="field-block">
+      <div class="field-label">
+        <span>📤 保存先</span>
+        <span class="hint">複数選択可</span>
+      </div>
+      <div class="dest-row">
+        <label class="dest-chip"><input type="checkbox" id="destNotion" checked> <span>🗒️ Notion</span></label>
+        <label class="dest-chip"><input type="checkbox" id="destSheet"  checked> <span>📊 スプレッドシート</span></label>
+      </div>
+    </div>
+
     <!-- Save -->
     <div class="save-area">
-      <button class="save-btn" id="saveBtn" disabled>✨ AI要約 &amp; Notion 保存</button>
+      <button class="save-btn" id="saveBtn" disabled>✨ AI要約 &amp; 保存</button>
     </div>
   </div>
 
@@ -263,7 +286,8 @@ details[open] > summary { margin-bottom: 14px; }
     <div class="saving-title" id="savingTitle">⏳ 処理中…</div>
     <div class="saving-list">
       <div class="saving-row pending" id="rowGemini"><span class="saving-icon">○</span><span>Gemini で AI 要約中…</span></div>
-      <div class="saving-row pending" id="rowNotion"><span class="saving-icon">○</span><span>Notion に送信中…</span></div>
+      <div class="saving-row pending" id="rowNotion" style="display:none;"><span class="saving-icon">○</span><span>Notion に送信中…</span></div>
+      <div class="saving-row pending" id="rowSheet"  style="display:none;"><span class="saving-icon">○</span><span>スプレッドシートに送信中…</span></div>
       <div class="saving-row pending" id="rowLocal"> <span class="saving-icon">○</span><span>ブラウザに保存中…</span></div>
     </div>
     <button class="saving-done-btn" id="savingDoneBtn">+ 次の録音へ</button>
@@ -335,10 +359,19 @@ details[open] > summary { margin-bottom: 14px; }
   testNotionBtn.addEventListener('click', async () => {
     testNotionBtn.disabled = true; testNotionBtn.textContent = '送信中…';
     try {
-      await sendToNotion({ id:'test_'+Date.now(), clientName:'テスト', mtgDate:todayStr(), text:'接続テスト', summary:'Notion 接続テスト成功', durationSec:0, createdAt:new Date().toISOString() });
-      testNotionBtn.textContent = '✓ 成功';
-    } catch (err) { showError('Notion テスト失敗: ' + err.message); testNotionBtn.textContent = '🔗 接続テスト'; }
-    setTimeout(() => { testNotionBtn.textContent = '🔗 接続テスト'; testNotionBtn.disabled = false; }, 2000);
+      const result = await sendToApi({ id:'test_'+Date.now(), clientName:'テスト', mtgDate:todayStr(), text:'接続テスト', summary:'接続テスト成功', durationSec:0, createdAt:new Date().toISOString(), destinations:['notion','sheet'] });
+      const r = result?.results || {};
+      const lines = [];
+      if (r.notion) lines.push('Notion: ' + (r.notion.ok ? '✅' : '❌ ' + (r.notion.error || '')));
+      if (r.sheet)  lines.push('スプレッドシート: ' + (r.sheet.ok ? '✅' : '❌ ' + (r.sheet.error || '')));
+      if (result?.ok) {
+        testNotionBtn.textContent = '✓ 両方成功';
+      } else {
+        showError('テスト結果:\n' + lines.join('\n'));
+        testNotionBtn.textContent = '⚠️ 一部失敗';
+      }
+    } catch (err) { showError('接続テスト失敗: ' + err.message); testNotionBtn.textContent = '🔗 接続テスト'; }
+    setTimeout(() => { testNotionBtn.textContent = '🔗 接続テスト'; testNotionBtn.disabled = false; }, 3000);
   });
 
   /* ===== Browser check ===== */
@@ -510,10 +543,25 @@ details[open] > summary { margin-bottom: 14px; }
     updateSaveBtn();
   });
 
-  /* ===== Save Button ===== */
-  const saveBtn = $('saveBtn');
+  /* ===== Save Button + Destination ===== */
+  const saveBtn   = $('saveBtn');
+  const destNotionEl = $('destNotion');
+  const destSheetEl  = $('destSheet');
+  function getDestinations() {
+    const dest = [];
+    if (destNotionEl.checked) dest.push('notion');
+    if (destSheetEl.checked)  dest.push('sheet');
+    return dest;
+  }
+  function destLabel() {
+    const d = getDestinations();
+    if (d.length === 0) return '';
+    if (d.length === 2) return 'Notion + スプレッドシート';
+    return d[0] === 'notion' ? 'Notion' : 'スプレッドシート';
+  }
   function updateSaveBtn() {
-    const ok = state.clientName.length > 0 && state.contentText.length > 0 && !state.isRecording;
+    const dest = getDestinations();
+    const ok = state.clientName.length > 0 && state.contentText.length > 0 && !state.isRecording && dest.length > 0;
     saveBtn.disabled = !ok;
     if (state.isRecording) {
       saveBtn.textContent = '⏺️ 録音停止してください';
@@ -521,10 +569,14 @@ details[open] > summary { margin-bottom: 14px; }
       saveBtn.textContent = '👤 クライアント名を入力してください';
     } else if (!state.contentText) {
       saveBtn.textContent = '🗣️ MTG 内容を録音してください';
+    } else if (dest.length === 0) {
+      saveBtn.textContent = '📤 保存先を選んでください';
     } else {
-      saveBtn.textContent = '✨ AI要約 & Notion 保存';
+      saveBtn.textContent = '✨ AI要約 & ' + destLabel() + ' に保存';
     }
   }
+  destNotionEl.addEventListener('change', updateSaveBtn);
+  destSheetEl .addEventListener('change', updateSaveBtn);
   saveBtn.addEventListener('click', () => executePipeline());
 
   /* ===== Pipeline ===== */
@@ -533,11 +585,19 @@ details[open] > summary { margin-bottom: 14px; }
 
   async function executePipeline() {
     state.mtgDate = dateField.value || todayStr();
+    const destinations = getDestinations();
+    if (!destinations.length) { showError('保存先を選んでください'); return; }
+
     overlay.classList.add('show');
     $('savingTitle').textContent = '⏳ 処理中…';
     savingDoneBtn.classList.remove('show');
+
+    // 行の表示制御
+    $('rowNotion').style.display = destinations.indexOf('notion') !== -1 ? 'flex' : 'none';
+    $('rowSheet').style.display  = destinations.indexOf('sheet')  !== -1 ? 'flex' : 'none';
     setSavRow('rowGemini', '⏳', 'Gemini で AI 要約中…', false);
-    setSavRow('rowNotion', '○', 'Notion に送信中…', true);
+    if (destinations.indexOf('notion') !== -1) setSavRow('rowNotion', '○', 'Notion に送信中…', true);
+    if (destinations.indexOf('sheet')  !== -1) setSavRow('rowSheet',  '○', 'スプレッドシートに送信中…', true);
     setSavRow('rowLocal',  '○', 'ブラウザに保存中…', true);
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
@@ -548,17 +608,32 @@ details[open] > summary { margin-bottom: 14px; }
       setSavRow('rowGemini', '✅', 'AI 要約完了', true);
     } catch(err) { setSavRow('rowGemini', '⚠️', 'AI 要約スキップ: ' + err.message, true); }
 
-    setSavRow('rowNotion', '⏳', 'Notion に送信中…', false);
+    const payload = { id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, createdAt:new Date().toISOString(), destinations };
+
     let sentAt = null;
+    if (destinations.indexOf('notion') !== -1) setSavRow('rowNotion', '⏳', 'Notion に送信中…', false);
+    if (destinations.indexOf('sheet')  !== -1) setSavRow('rowSheet',  '⏳', 'スプレッドシートに送信中…', false);
+
     try {
-      await sendToNotion({ id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, createdAt:new Date().toISOString() });
-      sentAt = new Date().toISOString();
-      setSavRow('rowNotion', '✅', 'Notion 送信完了', true);
-    } catch(err) { setSavRow('rowNotion', '⚠️', 'Notion 送信失敗: ' + err.message, true); }
+      const result = await sendToApi(payload);
+      // 結果は { ok, results: { notion: {ok,error,url}, sheet: {ok,error,row} } } の形
+      const r = result?.results || {};
+      if (destinations.indexOf('notion') !== -1) {
+        if (r.notion?.ok) { setSavRow('rowNotion', '✅', 'Notion 送信完了', true); sentAt = new Date().toISOString(); }
+        else              { setSavRow('rowNotion', '⚠️', 'Notion 失敗: ' + (r.notion?.error || '不明'), true); }
+      }
+      if (destinations.indexOf('sheet') !== -1) {
+        if (r.sheet?.ok) { setSavRow('rowSheet', '✅', 'スプレッドシート送信完了 (行 ' + r.sheet.row + ')', true); sentAt = sentAt || new Date().toISOString(); }
+        else             { setSavRow('rowSheet', '⚠️', 'スプレッドシート失敗: ' + (r.sheet?.error || '不明'), true); }
+      }
+    } catch(err) {
+      if (destinations.indexOf('notion') !== -1) setSavRow('rowNotion', '⚠️', '送信失敗: ' + err.message, true);
+      if (destinations.indexOf('sheet')  !== -1) setSavRow('rowSheet',  '⚠️', '送信失敗: ' + err.message, true);
+    }
 
     setSavRow('rowLocal', '⏳', 'ブラウザに保存中…', false);
     try {
-      await dbAdd({ id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, audioBlob:state.contentAudio, audioType:state.contentType, createdAt:new Date().toISOString(), sentAt });
+      await dbAdd({ id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, audioBlob:state.contentAudio, audioType:state.contentType, createdAt:new Date().toISOString(), sentAt, destinations });
       setSavRow('rowLocal', '✅', 'ブラウザに保存完了', true);
     } catch(err) { setSavRow('rowLocal', '⚠️', '保存失敗: ' + err.message, true); }
 
@@ -628,14 +703,23 @@ ${text}
     return out;
   }
 
-  /* ===== Notion ===== */
-  async function sendToNotion(payload) {
+  /* ===== Apps Script API (Notion + Sheet) ===== */
+  async function sendToApi(payload) {
     const url = (localStorage.getItem(LS.NOTION) || '').trim();
-    if (!url) throw new Error('Notion の Apps Script URL が未設定です');
+    if (!url) throw new Error('Apps Script URL が未設定です');
     const res = await fetch(url, { method:'POST', body:JSON.stringify(payload), redirect:'follow' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json().catch(()=>({}));
-    if (json?.ok === false) throw new Error(json.error || 'Unknown error');
+    return json;
+  }
+  // 後方互換用 (再送信ボタンなど)
+  async function sendToNotion(payload) {
+    if (!payload.destinations) payload.destinations = ['notion'];
+    const json = await sendToApi(payload);
+    if (json?.ok === false) {
+      const errs = json.results ? Object.values(json.results).filter(r=>!r.ok).map(r=>r.error).join(' / ') : (json.error || 'Unknown error');
+      throw new Error(errs);
+    }
     return json;
   }
 

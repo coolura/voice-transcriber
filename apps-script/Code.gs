@@ -1,6 +1,12 @@
 /**
  * MTG 録音メモ - Google Apps Script Web App
- * Notion API への中継役。クライアント名・MTG日・要約・全文を保存します。
+ * Notion / Google スプレッドシート 両対応の中継役。
+ *
+ * 保存先はリクエストの destinations プロパティで選択:
+ *   destinations: ['notion']            → Notion のみ
+ *   destinations: ['sheet']             → スプレッドシートのみ
+ *   destinations: ['notion', 'sheet']   → 両方
+ *   未指定                              → Notion のみ（後方互換）
  *
  * ===== 初回セットアップ =====
  * 1. https://www.notion.so/my-integrations でインテグレーション作成 → トークン取得
@@ -10,6 +16,12 @@
  * 5. デプロイを管理 → 新しいバージョン → デプロイ（URL は変わりません）
  */
 
+// ===== スプレッドシート設定 =====
+const SPREADSHEET_ID = '1THwJXYyFXD5CcZAiY3FOL7xfb51SPQMq99ctA7UF5T8';
+const SHEET_NAME     = 'MTG録音';
+const SHEET_HEADERS  = ['日時', 'クライアント名', 'MTG日', '長さ(秒)', '長さ', '文字数', 'AI要約', '全文テキスト', 'ID'];
+
+// ===== 初回のみ実行する設定関数 =====
 function setNotionCredentials() {
   PropertiesService.getScriptProperties().setProperties({
     NOTION_TOKEN:       'ここに ntn_xxx... を貼り付け',
@@ -21,23 +33,47 @@ function setNotionCredentials() {
 /* ===== メイン ===== */
 function doPost(e) {
   try {
+    const data         = JSON.parse(e.postData.contents);
+    const destinations = Array.isArray(data.destinations) && data.destinations.length
+                       ? data.destinations
+                       : ['notion']; // 後方互換: デフォルトは Notion のみ
+    const results = {};
+
+    if (destinations.indexOf('notion') !== -1) {
+      results.notion = saveToNotion_(data);
+    }
+    if (destinations.indexOf('sheet') !== -1) {
+      results.sheet = saveToSheet_(data);
+    }
+
+    // 全部成功した場合のみ ok: true
+    const allOk = Object.keys(results).every(function(k) { return results[k].ok; });
+    return jsonOut_({ ok: allOk, results: results });
+
+  } catch (err) {
+    return jsonOut_({ ok: false, error: String(err && err.message || err) });
+  }
+}
+
+function doGet() {
+  return jsonOut_({ ok: true, msg: 'MTG録音メモ endpoint alive (Notion + Sheet)' });
+}
+
+/* ===== Notion 保存 ===== */
+function saveToNotion_(data) {
+  try {
     const props = PropertiesService.getScriptProperties();
     const token = props.getProperty('NOTION_TOKEN');
     const dbId  = props.getProperty('NOTION_DATABASE_ID');
     if (!token || token.startsWith('ここに')) {
-      return jsonOut_({ ok: false, error: 'setNotionCredentials() を先に実行してください' });
+      return { ok: false, error: 'setNotionCredentials() を先に実行してください' };
     }
 
-    const data        = JSON.parse(e.postData.contents);
     const clientName  = String(data.clientName || '').trim() || '不明';
     const mtgDate     = String(data.mtgDate || '');
     const createdAt   = data.createdAt ? new Date(data.createdAt) : new Date();
     const tz          = Session.getScriptTimeZone();
-
-    // ページタイトル: 「山田商事 - 2026-05-25」
-    const title = clientName + (mtgDate ? ' - ' + mtgDate : '');
-
-    // 日本語表示用の日付
+    const title       = clientName + (mtgDate ? ' - ' + mtgDate : '');
     const displayDate = mtgDate ? jpDate_(mtgDate) : Utilities.formatDate(createdAt, tz, 'yyyy年MM月dd日');
 
     const body = {
@@ -55,17 +91,62 @@ function doPost(e) {
     });
     const resData = JSON.parse(res.getContentText());
     if (res.getResponseCode() !== 200) {
-      return jsonOut_({ ok: false, error: resData.message || 'Notion API エラー' });
+      return { ok: false, error: resData.message || 'Notion API エラー' };
     }
-    return jsonOut_({ ok: true, url: resData.url });
+    return { ok: true, url: resData.url };
 
   } catch (err) {
-    return jsonOut_({ ok: false, error: String(err && err.message || err) });
+    return { ok: false, error: String(err && err.message || err) };
   }
 }
 
-function doGet() {
-  return jsonOut_({ ok: true, msg: 'MTG録音メモ Notion endpoint alive' });
+/* ===== スプレッドシート保存（行追加） ===== */
+function saveToSheet_(data) {
+  try {
+    const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let   sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) {
+      sheet = ss.insertSheet(SHEET_NAME);
+      sheet.appendRow(SHEET_HEADERS);
+      sheet.getRange(1, 1, 1, SHEET_HEADERS.length)
+        .setFontWeight('bold')
+        .setBackground('#0f172a')
+        .setFontColor('#f1f5f9');
+      sheet.setFrozenRows(1);
+      sheet.setColumnWidth(1, 140); // 日時
+      sheet.setColumnWidth(2, 140); // クライアント名
+      sheet.setColumnWidth(3, 110); // MTG日
+      sheet.setColumnWidth(4, 70);  // 長さ(秒)
+      sheet.setColumnWidth(5, 90);  // 長さ
+      sheet.setColumnWidth(6, 70);  // 文字数
+      sheet.setColumnWidth(7, 380); // AI要約
+      sheet.setColumnWidth(8, 380); // 全文テキスト
+      sheet.setColumnWidth(9, 140); // ID
+    }
+
+    const createdAt   = data.createdAt ? new Date(data.createdAt) : new Date();
+    const durationSec = Number(data.durationSec || 0);
+
+    sheet.appendRow([
+      createdAt,                                // 日時
+      String(data.clientName || ''),            // クライアント名
+      String(data.mtgDate || ''),               // MTG日
+      durationSec,                              // 長さ(秒)
+      formatDuration_(durationSec),             // 長さ（人間表記）
+      Number((data.text || '').length),         // 文字数
+      String(data.summary || ''),               // AI要約
+      String(data.text || ''),                  // 全文テキスト
+      String(data.id || ''),                    // ID
+    ]);
+
+    // 折返表示を有効に
+    const lastRow = sheet.getLastRow();
+    sheet.getRange(lastRow, 7, 1, 2).setWrap(true).setVerticalAlignment('top');
+
+    return { ok: true, row: lastRow };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message || err) };
+  }
 }
 
 /* ===== Notion ブロック構築 ===== */
@@ -107,13 +188,11 @@ function buildBlocks_(clientName, displayDate, data, createdAt, tz) {
 
 /* ===== ユーティリティ ===== */
 function jpDate_(dateStr) {
-  // 'YYYY-MM-DD' → '2026年5月25日'
   try {
     var parts = dateStr.split('-');
     return parts[0] + '年' + Number(parts[1]) + '月' + Number(parts[2]) + '日';
   } catch(_) { return dateStr; }
 }
-
 function h2_(t) {
   return { object: 'block', type: 'heading_2', heading_2: { rich_text: [{ text: { content: t } }] } };
 }
