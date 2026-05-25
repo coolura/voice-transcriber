@@ -404,7 +404,7 @@ details[open] > summary { margin-bottom: 14px; }
   let stopped = false;
 
   function startSpeechRec(onFinal, onInterim) {
-    if (!SpeechRec) return;
+    if (!SpeechRec) { showError('Web Speech API 非対応。Chrome/Edge をお使いください'); return; }
     stopped = false;
     let accumulated = '';
     recognition = new SpeechRec();
@@ -417,10 +417,24 @@ details[open] > summary { margin-bottom: 14px; }
       }
       onFinal(accumulated); onInterim(interim);
     };
-    recognition.onerror = e => { if (e.error !== 'no-speech' && e.error !== 'aborted') showError('音声認識エラー: ' + e.error); };
-    recognition.onend   = () => { if (!stopped) { try { recognition.start(); } catch(_){} } };
-    try { recognition.start(); } catch(_){}
-    return () => accumulated; // getter
+    recognition.onerror = e => {
+      console.error('SpeechRec error:', e);
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        showError('マイクの利用が許可されていません。ブラウザの設定からマイク権限を許可してください。');
+      } else if (e.error === 'no-speech') {
+        // ignore - onend で再起動される
+      } else if (e.error !== 'aborted') {
+        showError('音声認識エラー: ' + e.error);
+      }
+    };
+    recognition.onend = () => { if (!stopped) { try { recognition.start(); } catch(_){} } };
+    try {
+      recognition.start();
+      console.log('SpeechRec started');
+    } catch(err) {
+      console.error('SpeechRec start failed:', err);
+      showError('音声認識の起動に失敗: ' + err.message);
+    }
   }
 
   function stopAll() {
@@ -472,14 +486,14 @@ details[open] > summary { margin-bottom: 14px; }
         s1Trans = $('s1Trans'), clientField = $('clientField'), s1NextBtn = $('s1NextBtn');
   let s1FinalText = '';
 
-  s1RecBtn.addEventListener('click', async () => {
+  s1RecBtn.addEventListener('click', () => {
     hideNotice();
     s1FinalText = '';
-    s1Trans.innerHTML = '<span class="ph">認識中…</span>';
-    try { await getMic(); } catch(err) { showError('マイクを許可してください: ' + err.message); return; }
+    s1Trans.innerHTML = '<span class="ph">🎤 マイクに向かって話してください…</span>';
     s1RecBtn.disabled = true; s1StopBtn.disabled = false;
     s1Dot.classList.add('live');
-    runTimer(s1Timer); runMeter(mediaStream, s1Meter);
+    runTimer(s1Timer);
+    // ステップ1は SpeechRecognition のみ使用（マイク競合を避けるため getUserMedia は使わない）
     startSpeechRec(
       fin  => { s1FinalText = fin; renderT(s1Trans, fin, ''); if (fin.trim()) { clientField.value = fin.trim(); s1NextBtn.disabled = false; } },
       intr => renderT(s1Trans, s1FinalText, intr)
