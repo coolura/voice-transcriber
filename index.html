@@ -3,1003 +3,740 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>音声録音 & テキスト化</title>
+<title>MTG 録音メモ</title>
 <style>
-  :root {
-    --bg: #0f172a;
-    --card: #1e293b;
-    --text: #f1f5f9;
-    --muted: #94a3b8;
-    --accent: #38bdf8;
-    --danger: #ef4444;
-    --success: #22c55e;
-    --border: #334155;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 24px;
-  }
-  .container { max-width: 920px; margin: 0 auto; }
-  h1 {
-    font-size: 24px;
-    margin: 0 0 8px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 20px;
-  }
-  .controls {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  button {
-    background: var(--accent);
-    color: #0f172a;
-    border: 0;
-    padding: 12px 20px;
-    font-size: 15px;
-    font-weight: 600;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: opacity .15s, transform .05s;
-  }
-  button:hover { opacity: .9; }
-  button:active { transform: translateY(1px); }
-  button:disabled { opacity: .4; cursor: not-allowed; }
-  button.danger { background: var(--danger); color: white; }
-  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
-  .status {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--muted);
-    font-size: 14px;
-  }
-  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
-  .dot.live { background: var(--danger); animation: pulse 1s ease-in-out infinite; }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: .3; }
-  }
-  .meter-wrap {
-    width: 120px;
-    height: 8px;
-    background: #0f172a;
-    border-radius: 4px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-  }
-  .meter-fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, var(--success), var(--accent), var(--danger));
-    transition: width .08s linear;
-  }
-  .timer {
-    font-variant-numeric: tabular-nums;
-    color: var(--text);
-    font-weight: 600;
-    min-width: 56px;
-    text-align: right;
-  }
-  .transcript-area {
-    margin-top: 16px;
-    min-height: 80px;
-    padding: 16px;
-    background: #0f172a;
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    font-size: 15px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  .transcript-area .interim { color: var(--muted); }
-  .transcript-area .placeholder { color: var(--muted); font-style: italic; }
-  .list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .list-header h2 { margin: 0; font-size: 18px; }
-  .search {
-    background: #0f172a;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 12px;
-    color: var(--text);
-    font-size: 14px;
-    width: 220px;
-  }
-  .list { display: flex; flex-direction: column; gap: 10px; }
-  .item {
-    background: #0f172a;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-  }
-  .item-main { flex: 1; min-width: 0; }
-  .item-meta {
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 6px;
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .item-text {
-    font-size: 14px;
-    line-height: 1.55;
-    word-break: break-word;
-    margin-bottom: 8px;
-  }
-  .item-audio {
-    width: 100%;
-    height: 32px;
-  }
-  .item-actions {
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-    flex-direction: column;
-  }
-  .icon-btn {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--border);
-    padding: 6px 10px;
-    font-size: 13px;
-    border-radius: 6px;
-    white-space: nowrap;
-  }
-  .icon-btn:hover { color: var(--text); }
-  .icon-btn.del:hover { color: var(--danger); border-color: var(--danger); }
-  .empty {
-    text-align: center;
-    color: var(--muted);
-    padding: 32px;
-    font-size: 14px;
-  }
-  .badge {
-    background: var(--border);
-    color: var(--text);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 11px;
-  }
-  .error {
-    background: rgba(239, 68, 68, .1);
-    border: 1px solid var(--danger);
-    color: #fecaca;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-size: 14px;
-  }
-  .hint {
-    background: rgba(56, 189, 248, .1);
-    border: 1px solid var(--accent);
-    color: #bae6fd;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .stats {
-    display: flex;
-    gap: 16px;
-    margin-bottom: 12px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-  .stats strong { color: var(--text); }
-  .settings-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .settings-row input, .settings-row select {
-    background: #0f172a;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 12px;
-    color: var(--text);
-    font-size: 14px;
-  }
-  .settings-row input[type="password"] { flex: 1; min-width: 240px; font-family: monospace; }
-  .settings-row label { font-size: 13px; color: var(--muted); }
-  details > summary {
-    cursor: pointer;
-    font-size: 15px;
-    font-weight: 600;
-    padding: 4px 0;
-    user-select: none;
-  }
-  details[open] > summary { margin-bottom: 12px; }
-  .summary-box {
-    margin-top: 8px;
-    padding: 10px 12px;
-    background: rgba(34, 197, 94, .08);
-    border-left: 3px solid var(--success);
-    border-radius: 4px;
-    font-size: 13px;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    word-break: break-word;
-    color: #d1fae5;
-  }
-  .summary-label {
-    font-size: 11px;
-    color: var(--success);
-    font-weight: 600;
-    margin-bottom: 4px;
-    text-transform: uppercase;
-    letter-spacing: .5px;
-  }
-  .saved-flash {
-    color: var(--success);
-    font-size: 12px;
-    margin-left: 8px;
-    opacity: 0;
-    transition: opacity .2s;
-  }
-  .saved-flash.show { opacity: 1; }
+:root {
+  --bg: #0f172a; --card: #1e293b; --text: #f1f5f9;
+  --muted: #94a3b8; --accent: #38bdf8; --danger: #ef4444;
+  --success: #22c55e; --border: #334155;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; padding: 20px 16px 48px;
+}
+.container { max-width: 640px; margin: 0 auto; }
+h1 { font-size: 22px; margin-bottom: 4px; }
+.subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+
+/* Progress */
+.progress { display: flex; align-items: flex-start; justify-content: center; gap: 0; margin-bottom: 22px; }
+.prog-item { display: flex; flex-direction: column; align-items: center; }
+.prog-dot {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  background: var(--border); color: var(--muted); transition: all .25s;
+}
+.prog-dot.active { background: var(--accent); color: #0f172a; }
+.prog-dot.done   { background: var(--success); color: #0f172a; }
+.prog-label { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: center; }
+.prog-line { width: 48px; height: 2px; background: var(--border); margin-top: 14px; transition: background .25s; }
+.prog-line.done { background: var(--success); }
+
+/* Panels */
+.panel { display: none; }
+.panel.active { display: block; }
+.step-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+.step-hint {
+  font-size: 13px; color: var(--muted);
+  background: rgba(56,189,248,.07); border: 1px solid rgba(56,189,248,.2);
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; line-height: 1.6;
+}
+.step-hint strong { color: var(--accent); }
+.step-hint .eg { display: block; margin-top: 6px; font-style: italic; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--accent); color: #0f172a;
+  border: 0; padding: 12px 20px; font-size: 15px; font-weight: 600;
+  border-radius: 8px; cursor: pointer; min-height: 48px; transition: opacity .15s;
+}
+.btn:hover { opacity: .88; }
+.btn:disabled { opacity: .38; cursor: not-allowed; }
+.btn-danger  { background: var(--danger);  color: white; }
+.btn-ghost   { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn-success { background: var(--success); color: #0f172a; }
+.btn-sm      { padding: 8px 14px; font-size: 13px; min-height: 38px; }
+.btn-row     { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+.spacer      { flex: 1; }
+
+/* Recording */
+.rec-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.rec-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.live { background: var(--danger); animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+.timer { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 48px; }
+.meter-wrap { width: 80px; height: 6px; background: #0f172a; border-radius: 3px; overflow: hidden; border: 1px solid var(--border); }
+.meter-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--success), var(--accent), var(--danger)); transition: width .08s; }
+
+/* Transcript */
+.transcript {
+  min-height: 64px; max-height: 160px; overflow-y: auto;
+  padding: 12px; background: #0f172a;
+  border: 1px dashed var(--border); border-radius: 8px;
+  font-size: 14px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-word; margin-bottom: 12px;
+}
+.transcript .interim { color: var(--muted); }
+.transcript .ph { color: var(--muted); font-style: italic; }
+
+/* Input fields */
+.field {
+  width: 100%; background: #0f172a;
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 11px 13px; color: var(--text); font-size: 15px;
+}
+.field:focus { outline: none; border-color: var(--accent); }
+.field-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: block; }
+
+/* Saving */
+.saving-list { display: flex; flex-direction: column; gap: 14px; }
+.saving-row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.saving-icon { font-size: 20px; width: 28px; text-align: center; }
+.saving-row.pending { color: var(--muted); }
+
+/* List */
+.list-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.list-top h2 { font-size: 16px; }
+.search { background: #0f172a; border: 1px solid var(--border); border-radius: 8px; padding: 7px 11px; color: var(--text); font-size: 13px; width: 170px; }
+.badge { background: var(--border); color: var(--text); padding: 1px 7px; border-radius: 10px; font-size: 11px; }
+.mtg-card { background: #0f172a; border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+.mtg-client { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
+.mtg-date   { font-size: 13px; color: var(--accent); margin-bottom: 6px; }
+.mtg-meta   { font-size: 11px; color: var(--muted); display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.mtg-summary {
+  font-size: 13px; color: #d1fae5;
+  background: rgba(34,197,94,.08); border-left: 3px solid var(--success);
+  padding: 8px 10px; border-radius: 4px; line-height: 1.55;
+  margin-bottom: 8px; white-space: pre-wrap; word-break: break-word;
+}
+.mtg-sent   { font-size: 11px; color: var(--success); margin-bottom: 6px; }
+.mtg-audio  { width: 100%; height: 32px; margin: 6px 0; display: block; }
+.mtg-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.empty      { text-align: center; color: var(--muted); padding: 28px; font-size: 14px; }
+.notice     { background: rgba(239,68,68,.1); border: 1px solid var(--danger); color: #fecaca; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+.info       { background: rgba(56,189,248,.1); border: 1px solid var(--accent); color: #bae6fd; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; line-height: 1.5; }
+
+/* Settings */
+details > summary { cursor: pointer; font-size: 14px; font-weight: 600; user-select: none; padding: 2px 0; }
+details[open] > summary { margin-bottom: 14px; }
+.set-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.set-row label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.set-row input[type="password"], .set-row select {
+  flex: 1; min-width: 200px; background: #0f172a;
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 10px; color: var(--text); font-size: 13px;
+}
+.flash { font-size: 12px; color: var(--success); opacity: 0; transition: opacity .2s; }
+.flash.show { opacity: 1; }
+.set-note { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🎙️ 音声録音 & テキスト化</h1>
-  <p class="subtitle">録音 → Web Speech API でテキスト化 → Gemini で要約 → Notion に自動保存。全部ブラウザだけで完結。</p>
+  <h1>🎙️ MTG 録音メモ</h1>
+  <p class="subtitle">① クライアント名 → ② MTG日 → ③ 内容を話す → Notion に自動保存</p>
 
-  <div id="error" class="error" style="display:none;"></div>
-  <div id="hint" class="hint" style="display:none;"></div>
+  <div id="noticeEl" class="notice" style="display:none;"></div>
+  <div id="infoEl"   class="info"   style="display:none;"></div>
 
+  <!-- Settings -->
   <div class="card">
     <details id="settingsDetails">
-      <summary>⚙️ AI 要約設定 (Gemini API)</summary>
-      <div class="settings-row">
-        <label for="apiKeyInput">APIキー:</label>
-        <input id="apiKeyInput" type="password" placeholder="AIza... (https://aistudio.google.com で取得)" autocomplete="off">
-        <select id="modelSelect">
-          <option value="gemini-2.5-flash">gemini-2.5-flash (推奨/無料枠)</option>
-          <option value="gemini-2.5-pro">gemini-2.5-pro (高品質)</option>
-          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-          <option value="gemini-1.5-flash">gemini-1.5-flash (旧)</option>
-        </select>
-        <button id="saveKeyBtn">保存</button>
-        <span class="saved-flash" id="savedFlash">✓ 保存しました</span>
+      <summary>⚙️ 設定</summary>
+      <div style="margin-bottom:12px;">
+        <span class="field-label">Gemini API キー <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;">▶ 取得</a></span>
+        <div class="set-row">
+          <input id="apiKeyInput" type="password" placeholder="AIza..." autocomplete="off">
+          <select id="modelSelect">
+            <option value="gemini-2.5-flash">gemini-2.5-flash（推奨）</option>
+            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+          </select>
+        </div>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:8px 0 0;">APIキーはこのブラウザの localStorage にのみ保存され、外部送信は Gemini API への要約リクエスト時のみです。</p>
-    </details>
-
-    <details id="sheetDetails" style="margin-top:16px;">
-      <summary>🗒️ Notion 保存設定</summary>
-      <div class="settings-row" style="margin-top:8px;">
-        <label for="sheetUrlInput">Apps Script URL:</label>
-        <input id="sheetUrlInput" type="password" placeholder="https://script.google.com/macros/s/AKfy.../exec" autocomplete="off">
-        <button id="saveSheetBtn">保存</button>
-        <button id="testSheetBtn" class="ghost">接続テスト</button>
-        <span class="saved-flash" id="sheetSavedFlash">✓ 保存しました</span>
+      <div>
+        <span class="field-label">Notion Apps Script URL <a href="https://github.com/coolura/voice-transcriber/blob/main/apps-script/Code.gs" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;">▶ 設定手順</a></span>
+        <div class="set-row">
+          <input id="notionUrlInput" type="password" placeholder="https://script.google.com/macros/s/..." autocomplete="off">
+        </div>
+        <label style="font-size:13px;display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:10px;">
+          <input type="checkbox" id="autoPipelineToggle">
+          録音完了後に自動で「要約 → Notion 保存」を実行
+        </label>
       </div>
-      <div class="settings-row" style="margin-top:8px;">
-        <label><input type="checkbox" id="autoPipelineToggle"> 録音停止後に自動で「要約 → Notion 保存」まで実行</label>
+      <div class="btn-row" style="margin-top:4px;">
+        <button class="btn btn-ghost btn-sm" id="saveSettingsBtn">💾 保存</button>
+        <button class="btn btn-ghost btn-sm" id="testNotionBtn">🔗 接続テスト</button>
+        <span class="flash" id="settingsFlash">✓ 保存しました</span>
       </div>
-      <p style="font-size:12px;color:var(--muted);margin:8px 0 0;">
-        セットアップ手順:
-        <a href="https://github.com/coolura/voice-transcriber/blob/main/apps-script/Code.gs" target="_blank" rel="noopener">apps-script/Code.gs</a>
-        の手順に沿って Notion インテグレーション作成 → データベース作成 → Apps Script にデプロイ → 表示された URL を上の欄に貼り付け
-      </p>
+      <p class="set-note">キーはこのブラウザの localStorage にのみ保存。外部送信は要約・Notion 保存の時だけです。</p>
     </details>
   </div>
 
-  <div class="card">
-    <div class="controls">
-      <button id="startBtn">● 録音開始</button>
-      <button id="stopBtn" class="danger" disabled>■ 停止 & 保存</button>
-      <button id="cancelBtn" class="ghost" disabled>キャンセル</button>
-      <div class="status">
-        <div class="meter-wrap"><div class="meter-fill" id="meterFill"></div></div>
-        <span class="timer" id="timer">00:00</span>
-        <span class="dot" id="statusDot"></span>
-        <span id="statusText">待機中</span>
+  <!-- Wizard -->
+  <div class="card" id="wizardCard">
+    <!-- Progress indicator -->
+    <div class="progress">
+      <div class="prog-item">
+        <div class="prog-dot active" id="dot1">1</div>
+        <div class="prog-label">クライアント</div>
+      </div>
+      <div class="prog-line" id="line12"></div>
+      <div class="prog-item">
+        <div class="prog-dot" id="dot2">2</div>
+        <div class="prog-label">MTG日</div>
+      </div>
+      <div class="prog-line" id="line23"></div>
+      <div class="prog-item">
+        <div class="prog-dot" id="dot3">3</div>
+        <div class="prog-label">内容</div>
       </div>
     </div>
-    <div class="transcript-area" id="transcriptArea">
-      <span class="placeholder">「録音開始」を押して話してください…</span>
+
+    <!-- Step 1: Client name -->
+    <div class="panel active" id="panel1">
+      <div class="step-title">👤 クライアント名</div>
+      <div class="step-hint">
+        🗣️ <strong>話し方:</strong>
+        クライアントの名前だけをはっきり話してください。
+        <span class="eg">例:「山田商事です」「株式会社○○の田中さん」</span>
+      </div>
+      <div class="rec-row">
+        <button class="btn" id="s1RecBtn">🎙️ 録音</button>
+        <button class="btn btn-danger" id="s1StopBtn" disabled>■ 完了</button>
+        <div class="rec-status">
+          <div class="dot" id="s1Dot"></div>
+          <span class="timer" id="s1Timer">00:00</span>
+          <div class="meter-wrap"><div class="meter-fill" id="s1Meter"></div></div>
+        </div>
+      </div>
+      <div class="transcript" id="s1Trans"><span class="ph">録音すると文字が表示されます…</span></div>
+      <label class="field-label">クライアント名（修正できます）</label>
+      <input class="field" id="clientField" type="text" placeholder="山田商事">
+      <div class="btn-row">
+        <div class="spacer"></div>
+        <button class="btn" id="s1NextBtn" disabled>次へ →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Date -->
+    <div class="panel" id="panel2">
+      <div class="step-title">📅 MTG日</div>
+      <div class="step-hint">
+        📌 今日の日付が自動で入っています。<br>
+        別の日付の場合は変更してください。
+      </div>
+      <label class="field-label">MTG の日付</label>
+      <input class="field" id="dateField" type="date">
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="s2BackBtn">← 戻る</button>
+        <div class="spacer"></div>
+        <button class="btn" id="s2NextBtn">次へ →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Content -->
+    <div class="panel" id="panel3">
+      <div class="step-title">🗣️ MTG 内容</div>
+      <div class="step-hint">
+        📋 <strong>話すルール:</strong>
+        MTG で話した内容を<strong>自由に</strong>話してください。<br>
+        議題・決定事項・次のアクションなど、できるだけ詳しく。
+        <span class="eg">例:「今日は新商品の提案をしました。先方から予算の懸念があり、来週再提案することになりました。」</span>
+      </div>
+      <div class="rec-row">
+        <button class="btn" id="s3RecBtn">🎙️ 録音開始</button>
+        <button class="btn btn-danger" id="s3StopBtn" disabled>■ 完了</button>
+        <div class="rec-status">
+          <div class="dot" id="s3Dot"></div>
+          <span class="timer" id="s3Timer">00:00</span>
+          <div class="meter-wrap"><div class="meter-fill" id="s3Meter"></div></div>
+        </div>
+      </div>
+      <div class="transcript" id="s3Trans"><span class="ph">録音すると文字が表示されます…</span></div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="s3BackBtn">← 戻る</button>
+        <div class="spacer"></div>
+        <button class="btn btn-success" id="s3SaveBtn" disabled>✨ 要約 &amp; Notion 保存</button>
+      </div>
+    </div>
+
+    <!-- Saving -->
+    <div class="panel" id="panelSaving">
+      <div class="step-title" style="margin-bottom:20px;">⏳ 処理中…</div>
+      <div class="saving-list">
+        <div class="saving-row pending" id="rowGemini"><span class="saving-icon">○</span><span>Gemini で AI 要約中…</span></div>
+        <div class="saving-row pending" id="rowNotion"><span class="saving-icon">○</span><span>Notion に送信中…</span></div>
+        <div class="saving-row pending" id="rowLocal"> <span class="saving-icon">○</span><span>ブラウザに保存中…</span></div>
+      </div>
+    </div>
+
+    <!-- Done -->
+    <div class="panel" id="panelDone">
+      <div style="text-align:center;padding:24px 0;">
+        <div style="font-size:52px;margin-bottom:12px;">✅</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:6px;">保存完了！</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:22px;">Notion に送信しました。</div>
+        <button class="btn" id="newRecBtn">＋ 新しい録音</button>
+      </div>
     </div>
   </div>
 
+  <!-- List -->
   <div class="card">
-    <div class="list-header">
-      <h2>📋 保存された録音 <span class="badge" id="countBadge">0</span></h2>
-      <div style="display:flex; gap:8px; flex-wrap: wrap;">
-        <input id="searchInput" class="search" type="text" placeholder="テキスト検索…">
-
-        <button id="clearBtn" class="ghost">全削除</button>
+    <div class="list-top">
+      <h2>📋 録音履歴 <span class="badge" id="cntBadge">0</span></h2>
+      <div style="display:flex;gap:8px;">
+        <input class="search" id="searchInput" type="text" placeholder="クライアント名…">
+        <button class="btn btn-ghost btn-sm" id="clearAllBtn">全削除</button>
       </div>
     </div>
-    <div class="stats" id="stats"></div>
-    <div id="list" class="list"></div>
+    <div id="listEl"></div>
   </div>
 </div>
 
 <script>
 (function () {
-  // ===== 定数 =====
-  const DB_NAME = 'voiceRecorderDB';
-  const STORE = 'recordings';
-  const DB_VERSION = 1;
-  const LS_API_KEY = 'gemini_api_key';
-  const LS_MODEL = 'gemini_model';
-  const LS_SHEET_URL = 'sheet_webapp_url';
-  const LS_AUTO_PIPELINE = 'auto_pipeline';
+  'use strict';
 
-  // ===== DOM =====
-  const $ = (id) => document.getElementById(id);
-  const startBtn = $('startBtn');
-  const stopBtn = $('stopBtn');
-  const cancelBtn = $('cancelBtn');
-  const statusDot = $('statusDot');
-  const statusText = $('statusText');
-  const transcriptArea = $('transcriptArea');
-  const listEl = $('list');
-  const countBadge = $('countBadge');
-  const searchInput = $('searchInput');
-  const clearBtn = $('clearBtn');
-  const errorEl = $('error');
-  const hintEl = $('hint');
-  const timerEl = $('timer');
-  const meterFill = $('meterFill');
-  const statsEl = $('stats');
-  const apiKeyInput = $('apiKeyInput');
-  const modelSelect = $('modelSelect');
-  const saveKeyBtn = $('saveKeyBtn');
-  const savedFlash = $('savedFlash');
-  const settingsDetails = $('settingsDetails');
-  const sheetDetails = $('sheetDetails');
-  const sheetUrlInput = $('sheetUrlInput');
-  const saveSheetBtn = $('saveSheetBtn');
-  const testSheetBtn = $('testSheetBtn');
-  const sheetSavedFlash = $('sheetSavedFlash');
-  const autoPipelineToggle = $('autoPipelineToggle');
-
-  function showError(msg) { errorEl.style.display = 'block'; errorEl.textContent = msg; }
-  function showHint(msg) { hintEl.style.display = 'block'; hintEl.innerHTML = msg; }
-
-  // ===== 設定 (API キー) =====
-  apiKeyInput.value = localStorage.getItem(LS_API_KEY) || '';
-  modelSelect.value = localStorage.getItem(LS_MODEL) || 'gemini-2.5-flash';
-  if (!apiKeyInput.value) settingsDetails.open = true;
-  saveKeyBtn.addEventListener('click', () => {
-    localStorage.setItem(LS_API_KEY, apiKeyInput.value.trim());
-    localStorage.setItem(LS_MODEL, modelSelect.value);
-    savedFlash.classList.add('show');
-    setTimeout(() => savedFlash.classList.remove('show'), 1500);
-  });
-  modelSelect.addEventListener('change', () => {
-    localStorage.setItem(LS_MODEL, modelSelect.value);
-  });
-
-  // ===== シート設定 =====
-  sheetUrlInput.value = localStorage.getItem(LS_SHEET_URL) || '';
-  autoPipelineToggle.checked = localStorage.getItem(LS_AUTO_PIPELINE) === '1';
-  if (!sheetUrlInput.value) sheetDetails.open = true;
-  saveSheetBtn.addEventListener('click', () => {
-    localStorage.setItem(LS_SHEET_URL, sheetUrlInput.value.trim());
-    sheetSavedFlash.classList.add('show');
-    setTimeout(() => sheetSavedFlash.classList.remove('show'), 1500);
-  });
-  autoPipelineToggle.addEventListener('change', () => {
-    localStorage.setItem(LS_AUTO_PIPELINE, autoPipelineToggle.checked ? '1' : '0');
-  });
-  testSheetBtn.addEventListener('click', async () => {
-    const url = (sheetUrlInput.value || '').trim();
-    if (!url) { showError('Web App URL が未入力です'); return; }
-    testSheetBtn.disabled = true;
-    testSheetBtn.textContent = '送信中…';
-    errorEl.style.display = 'none';
-    try {
-      await sendToSheet({
-        id: 'test_' + Date.now(),
-        createdAt: new Date().toISOString(),
-        durationSec: 0,
-        text: '【接続テスト】voice-transcriber より Notion へ',
-        summary: 'Notion 接続テスト成功',
-      });
-      testSheetBtn.textContent = '✓ 成功';
-      setTimeout(() => { testSheetBtn.textContent = '接続テスト'; testSheetBtn.disabled = false; }, 1500);
-    } catch (err) {
-      showError('Notion 送信失敗: ' + err.message);
-      testSheetBtn.textContent = '接続テスト';
-      testSheetBtn.disabled = false;
-    }
-  });
-
-  // ===== 自動パイプライン (録音停止後: 要約 → シート送信) =====
-  async function runAutoPipeline(entryId) {
-    const all = await dbGetAll();
-    const entry = all.find((e) => e.id === entryId);
-    if (!entry || !entry.text) return;
-    setStatus('🤖 要約中…', false);
-    try {
-      const summary = await summarizeWithGemini(entry.text);
-      entry.summary = summary;
-      entry.summarizedAt = new Date().toISOString();
-      await dbPut(entry);
-      await renderList();
-    } catch (err) {
-      showError('自動要約失敗: ' + err.message);
-      setStatus('待機中', false);
-      return;
-    }
-    setStatus('🗒️ Notion 送信中…', false);
-    try {
-      await sendToSheet({
-        id: entry.id,
-        createdAt: entry.createdAt,
-        durationSec: entry.durationSec || 0,
-        text: entry.text || '',
-        summary: entry.summary || '',
-      });
-      entry.sentAt = new Date().toISOString();
-      await dbPut(entry);
-      await renderList();
-      setStatus('✓ 完了', false);
-      setTimeout(() => setStatus('待機中', false), 2000);
-    } catch (err) {
-      showError('Notion 自動送信失敗: ' + err.message);
-      setStatus('待機中', false);
-    }
-  }
-
-  // ===== シート送信 =====
-  async function sendToSheet(payload) {
-    const url = (localStorage.getItem(LS_SHEET_URL) || '').trim();
-    if (!url) throw new Error('シート Web App URL が未設定です。設定パネルから登録してください。');
-    // Content-Type を付けずに送ることで CORS preflight を回避 (GAS Web App はテキスト本文を受け取れる)
-    const res = await fetch(url, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      redirect: 'follow',
+  /* ===== IndexedDB ===== */
+  const DB_NAME = 'voiceRecorderDB', STORE = 'recordings', DB_VER = 2;
+  let _db = null;
+  function openDB() {
+    if (_db) return Promise.resolve(_db);
+    return new Promise((res, rej) => {
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+      };
+      req.onsuccess = () => { _db = req.result; res(_db); };
+      req.onerror   = () => rej(req.error);
     });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    }
-    let json;
-    try { json = await res.json(); } catch { json = {}; }
-    if (json && json.ok === false) throw new Error(json.error || 'Unknown error');
-    return json;
+  }
+  function dbRun(mode, fn) {
+    return openDB().then(db => new Promise((res, rej) => {
+      const tx = db.transaction(STORE, mode);
+      const s  = tx.objectStore(STORE);
+      const r  = fn(s);
+      if (r && 'onsuccess' in r) { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }
+      else { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }
+    }));
+  }
+  const dbAdd    = e  => dbRun('readwrite', s => s.add(e));
+  const dbPut    = e  => dbRun('readwrite', s => s.put(e));
+  const dbDelete = id => dbRun('readwrite', s => s.delete(id));
+  const dbGetAll = () => dbRun('readonly',  s => s.getAll());
+  const dbClear  = () => dbRun('readwrite', s => s.clear());
+
+  /* ===== localStorage keys ===== */
+  const LS = { KEY: 'gemini_api_key', MODEL: 'gemini_model', NOTION: 'sheet_webapp_url', AUTO: 'auto_pipeline' };
+
+  /* ===== DOM refs ===== */
+  const $ = id => document.getElementById(id);
+  const noticeEl = $('noticeEl'), infoEl = $('infoEl');
+
+  function showError(msg) { noticeEl.textContent = msg; noticeEl.style.display = 'block'; setTimeout(() => noticeEl.style.display = 'none', 8000); }
+  function showInfo(msg)  { infoEl.innerHTML = msg;    infoEl.style.display  = 'block'; }
+  function hideNotice()   { noticeEl.style.display = 'none'; }
+
+  /* ===== Settings ===== */
+  const apiKeyInput = $('apiKeyInput'), modelSelect = $('modelSelect'),
+        notionUrlInput = $('notionUrlInput'), autoPipelineToggle = $('autoPipelineToggle'),
+        saveSettingsBtn = $('saveSettingsBtn'), testNotionBtn = $('testNotionBtn'),
+        settingsFlash = $('settingsFlash'), settingsDetails = $('settingsDetails');
+
+  apiKeyInput.value    = localStorage.getItem(LS.KEY)   || '';
+  modelSelect.value    = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
+  notionUrlInput.value = localStorage.getItem(LS.NOTION) || '';
+  autoPipelineToggle.checked = localStorage.getItem(LS.AUTO) === '1';
+  if (!apiKeyInput.value || !notionUrlInput.value) settingsDetails.open = true;
+
+  saveSettingsBtn.addEventListener('click', () => {
+    localStorage.setItem(LS.KEY,    apiKeyInput.value.trim());
+    localStorage.setItem(LS.MODEL,  modelSelect.value);
+    localStorage.setItem(LS.NOTION, notionUrlInput.value.trim());
+    localStorage.setItem(LS.AUTO,   autoPipelineToggle.checked ? '1' : '0');
+    settingsFlash.classList.add('show');
+    setTimeout(() => settingsFlash.classList.remove('show'), 1500);
+  });
+  testNotionBtn.addEventListener('click', async () => {
+    testNotionBtn.disabled = true; testNotionBtn.textContent = '送信中…';
+    try {
+      await sendToNotion({ id: 'test_' + Date.now(), clientName: 'テスト', mtgDate: todayStr(), text: '接続テスト', summary: 'Notion 接続テスト成功', durationSec: 0, createdAt: new Date().toISOString() });
+      testNotionBtn.textContent = '✓ 成功';
+    } catch (err) { showError('Notion テスト失敗: ' + err.message); testNotionBtn.textContent = '接続テスト'; }
+    setTimeout(() => { testNotionBtn.textContent = '🔗 接続テスト'; testNotionBtn.disabled = false; }, 2000);
+  });
+
+  /* ===== Browser check ===== */
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) showInfo('⚠️ このブラウザは音声認識に非対応です。<strong>Chrome または Edge</strong> をお使いください。');
+
+  /* ===== Wizard state ===== */
+  const wiz = { clientName: '', mtgDate: todayStr(), contentText: '', contentAudio: null, contentType: '', durationSec: 0 };
+
+  const dots  = [null, $('dot1'), $('dot2'), $('dot3')];
+  const lines = { 12: $('line12'), 23: $('line23') };
+  const panels = { 1: $('panel1'), 2: $('panel2'), 3: $('panel3'), saving: $('panelSaving'), done: $('panelDone') };
+
+  function showPanel(key) {
+    Object.values(panels).forEach(p => p.classList.remove('active'));
+    if (panels[key]) panels[key].classList.add('active');
+    const n = parseInt(key);
+    [1,2,3].forEach(i => {
+      dots[i].className = 'prog-dot' + (i < n ? ' done' : i === n ? ' active' : '');
+    });
+    lines[12].className = 'prog-line' + (n > 1 ? ' done' : '');
+    lines[23].className = 'prog-line' + (n > 2 ? ' done' : '');
+  }
+  showPanel(1);
+
+  /* ===== Recording helpers ===== */
+  let recognition = null, mediaStream = null, mediaRecorder = null, recChunks = [];
+  let timerInterval = null, audioCtx = null, analyser = null, meterRaf = null;
+  let stopped = false;
+
+  function startSpeechRec(onFinal, onInterim) {
+    if (!SpeechRec) return;
+    stopped = false;
+    let accumulated = '';
+    recognition = new SpeechRec();
+    recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = true;
+    recognition.onresult = e => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) accumulated += e.results[i][0].transcript;
+        else interim += e.results[i][0].transcript;
+      }
+      onFinal(accumulated); onInterim(interim);
+    };
+    recognition.onerror = e => { if (e.error !== 'no-speech' && e.error !== 'aborted') showError('音声認識エラー: ' + e.error); };
+    recognition.onend   = () => { if (!stopped) { try { recognition.start(); } catch(_){} } };
+    try { recognition.start(); } catch(_){}
+    return () => accumulated; // getter
   }
 
-  // ===== Gemini API 呼び出し =====
-  async function summarizeWithGemini(text) {
-    const key = (localStorage.getItem(LS_API_KEY) || '').trim();
-    if (!key) throw new Error('APIキーが未設定です。上の「⚙️ AI 要約設定」から設定してください。');
-    const model = localStorage.getItem(LS_MODEL) || 'gemini-2.5-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-    const prompt = `以下は音声を文字起こししたテキストです。日本語で簡潔に要約してください。
-- まず1〜2文の全体要約を書く
-- 次に「・」で重要ポイントを3〜5項目箇条書き
-- 文字起こしの誤認識と思われる箇所は文脈から補って解釈してよい
-- 余計な前置きや見出しは不要
+  function stopAll() {
+    stopped = true;
+    if (recognition)    { try { recognition.stop(); }  catch(_){} recognition = null; }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    if (mediaStream)    { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+    if (meterRaf)       { cancelAnimationFrame(meterRaf); meterRaf = null; }
+    if (audioCtx)       { audioCtx.close().catch(()=>{}); audioCtx = null; }
+    if (timerInterval)  { clearInterval(timerInterval); timerInterval = null; }
+  }
 
-テキスト:
+  function runMeter(stream, fillEl) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+      src.connect(analyser);
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteTimeDomainData(buf);
+        let s = 0; buf.forEach(v => { const d = (v-128)/128; s += d*d; });
+        fillEl.style.width = Math.min(100, Math.round(Math.sqrt(s/buf.length)*300)) + '%';
+        meterRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch(_){}
+  }
+
+  function runTimer(timerEl) {
+    const t0 = Date.now();
+    timerEl.textContent = '00:00';
+    timerInterval = setInterval(() => {
+      const s = Math.floor((Date.now()-t0)/1000);
+      timerEl.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+    }, 500);
+    return t0;
+  }
+
+  async function getMic() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaStream = stream;
+    return stream;
+  }
+
+  /* ===== Step 1 ===== */
+  const s1RecBtn = $('s1RecBtn'), s1StopBtn = $('s1StopBtn'),
+        s1Dot = $('s1Dot'), s1Timer = $('s1Timer'), s1Meter = $('s1Meter'),
+        s1Trans = $('s1Trans'), clientField = $('clientField'), s1NextBtn = $('s1NextBtn');
+  let s1FinalText = '';
+
+  s1RecBtn.addEventListener('click', async () => {
+    hideNotice();
+    s1FinalText = '';
+    s1Trans.innerHTML = '<span class="ph">認識中…</span>';
+    try { await getMic(); } catch(err) { showError('マイクを許可してください: ' + err.message); return; }
+    s1RecBtn.disabled = true; s1StopBtn.disabled = false;
+    s1Dot.classList.add('live');
+    runTimer(s1Timer); runMeter(mediaStream, s1Meter);
+    startSpeechRec(
+      fin  => { s1FinalText = fin; renderT(s1Trans, fin, ''); if (fin.trim()) { clientField.value = fin.trim(); s1NextBtn.disabled = false; } },
+      intr => renderT(s1Trans, s1FinalText, intr)
+    );
+  });
+
+  s1StopBtn.addEventListener('click', () => {
+    stopAll();
+    s1Dot.classList.remove('live');
+    s1RecBtn.disabled = false; s1StopBtn.disabled = true;
+    if (s1FinalText.trim()) { clientField.value = s1FinalText.trim(); s1NextBtn.disabled = false; }
+  });
+
+  clientField.addEventListener('input', () => { s1NextBtn.disabled = !clientField.value.trim(); });
+
+  s1NextBtn.addEventListener('click', () => {
+    stopAll();
+    wiz.clientName = clientField.value.trim();
+    $('dateField').value = wiz.mtgDate;
+    showPanel(2);
+  });
+
+  /* ===== Step 2 ===== */
+  $('dateField').value = todayStr();
+  $('s2BackBtn').addEventListener('click', () => showPanel(1));
+  $('s2NextBtn').addEventListener('click', () => {
+    wiz.mtgDate = $('dateField').value || todayStr();
+    showPanel(3);
+  });
+
+  /* ===== Step 3 ===== */
+  const s3RecBtn = $('s3RecBtn'), s3StopBtn = $('s3StopBtn'),
+        s3Dot = $('s3Dot'), s3Timer = $('s3Timer'), s3Meter = $('s3Meter'),
+        s3Trans = $('s3Trans'), s3SaveBtn = $('s3SaveBtn');
+  let s3FinalText = '', s3StartedAt = null;
+
+  $('s3BackBtn').addEventListener('click', () => { stopAll(); s3Dot.classList.remove('live'); s3RecBtn.disabled = false; s3StopBtn.disabled = true; showPanel(2); });
+
+  s3RecBtn.addEventListener('click', async () => {
+    hideNotice();
+    s3FinalText = ''; wiz.contentAudio = null; recChunks = [];
+    s3Trans.innerHTML = '<span class="ph">認識中…</span>';
+    try { await getMic(); } catch(err) { showError('マイクを許可してください: ' + err.message); return; }
+
+    const mime = ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'].find(m => MediaRecorder.isTypeSupported(m)) || '';
+    mediaRecorder = new MediaRecorder(mediaStream, mime ? { mimeType: mime } : {});
+    mediaRecorder.ondataavailable = e => { if (e.data?.size > 0) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => { wiz.contentAudio = new Blob(recChunks, { type: mediaRecorder.mimeType || 'audio/webm' }); wiz.contentType = mediaRecorder.mimeType || 'audio/webm'; };
+    mediaRecorder.start();
+
+    s3RecBtn.disabled = true; s3StopBtn.disabled = true; s3SaveBtn.disabled = true;
+    s3Dot.classList.add('live');
+    s3StartedAt = runTimer(s3Timer); runMeter(mediaStream, s3Meter);
+    startSpeechRec(
+      fin  => { s3FinalText = fin; renderT(s3Trans, fin, ''); if (fin.trim()) s3SaveBtn.disabled = false; },
+      intr => renderT(s3Trans, s3FinalText, intr)
+    );
+    setTimeout(() => { s3StopBtn.disabled = false; }, 1200);
+  });
+
+  s3StopBtn.addEventListener('click', () => {
+    wiz.durationSec = Math.round((Date.now() - (s3StartedAt || Date.now())) / 1000);
+    wiz.contentText = s3FinalText.trim();
+    stopAll();
+    s3Dot.classList.remove('live'); s3RecBtn.disabled = false; s3StopBtn.disabled = true;
+    if (wiz.contentText) s3SaveBtn.disabled = false;
+  });
+
+  s3SaveBtn.addEventListener('click', () => { if (!wiz.contentText) { showError('録音内容がありません'); return; } executePipeline(); });
+
+  /* ===== Pipeline: Summarize → Notion → Save ===== */
+  async function executePipeline() {
+    showPanel('saving'); hideNotice();
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+    let summary = '';
+
+    setSavRow('rowGemini', '⏳', 'Gemini で AI 要約中…', false);
+    try {
+      summary = await geminiSummarize(wiz.contentText);
+      setSavRow('rowGemini', '✅', 'AI 要約完了', true);
+    } catch(err) { setSavRow('rowGemini', '⚠️', 'AI 要約スキップ: ' + err.message, true); }
+
+    setSavRow('rowNotion', '⏳', 'Notion に送信中…', false);
+    let sentAt = null;
+    try {
+      await sendToNotion({ id, clientName: wiz.clientName, mtgDate: wiz.mtgDate, text: wiz.contentText, summary, durationSec: wiz.durationSec, createdAt: new Date().toISOString() });
+      sentAt = new Date().toISOString();
+      setSavRow('rowNotion', '✅', 'Notion 送信完了', true);
+    } catch(err) { setSavRow('rowNotion', '⚠️', 'Notion 送信失敗: ' + err.message, true); }
+
+    setSavRow('rowLocal', '⏳', 'ブラウザに保存中…', false);
+    try {
+      await dbAdd({ id, clientName: wiz.clientName, mtgDate: wiz.mtgDate, text: wiz.contentText, summary, durationSec: wiz.durationSec, audioBlob: wiz.contentAudio, audioType: wiz.contentType, createdAt: new Date().toISOString(), sentAt });
+      setSavRow('rowLocal', '✅', 'ブラウザに保存完了', true);
+    } catch(err) { setSavRow('rowLocal', '⚠️', '保存失敗: ' + err.message, true); }
+
+    await renderList();
+    setTimeout(() => showPanel('done'), 500);
+  }
+
+  function setSavRow(id, icon, text, done) {
+    const el = $(id);
+    el.querySelector('.saving-icon').textContent = icon;
+    el.querySelector('span:last-child').textContent = text;
+    el.classList.toggle('pending', !done);
+  }
+
+  $('newRecBtn').addEventListener('click', resetWizard);
+  function resetWizard() {
+    Object.assign(wiz, { clientName:'', mtgDate: todayStr(), contentText:'', contentAudio:null, contentType:'', durationSec:0 });
+    s1FinalText = ''; s3FinalText = '';
+    s1Trans.innerHTML = '<span class="ph">録音すると文字が表示されます…</span>';
+    s3Trans.innerHTML = '<span class="ph">録音すると文字が表示されます…</span>';
+    clientField.value = ''; $('dateField').value = todayStr();
+    s1NextBtn.disabled = true; s3SaveBtn.disabled = true; s3StopBtn.disabled = true;
+    s1RecBtn.disabled = false; s3RecBtn.disabled = false;
+    [$('s1Timer'),$('s3Timer')].forEach(t => t.textContent = '00:00');
+    [$('s1Meter'),$('s3Meter')].forEach(m => m.style.width = '0%');
+    s1Dot.classList.remove('live'); s3Dot.classList.remove('live');
+    showPanel(1);
+  }
+
+  /* ===== Gemini API ===== */
+  async function geminiSummarize(text) {
+    const key   = (localStorage.getItem(LS.KEY) || '').trim();
+    const model = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
+    if (!key) throw new Error('Gemini API キーが未設定です');
+    const prompt = `以下はMTGを音声録音・文字起こししたテキストです。日本語でMTG議事録として整理してください。
+
+## 要約
+（全体を1〜2文で簡潔に）
+
+## 主な内容・議題
+・（箇条書きで3〜5項目）
+
+## 決定事項・ネクストアクション
+・（あれば記載、なければ「特になし」）
+
+---
+文字起こし:
 """
 ${text}
 """`;
-    const body = {
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
-    };
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 1024 } }),
     });
-    if (!res.ok) {
-      let detail = '';
-      try { const j = await res.json(); detail = j?.error?.message || JSON.stringify(j); } catch {}
-      throw new Error(`Gemini API エラー (${res.status}): ${detail || res.statusText}`);
-    }
+    if (!res.ok) { const j = await res.json().catch(()=>{}); throw new Error(`Gemini ${res.status}: ${j?.error?.message||res.statusText}`); }
     const data = await res.json();
-    const out = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('\n').trim();
-    if (!out) throw new Error('要約結果が空でした。');
+    const out  = data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n').trim();
+    if (!out) throw new Error('要約結果が空でした');
     return out;
   }
 
-  // ===== ブラウザ対応チェック =====
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const hasMediaRecorder = typeof MediaRecorder !== 'undefined' && navigator.mediaDevices?.getUserMedia;
-
-  if (!hasMediaRecorder) {
-    showError('このブラウザは録音 API (MediaRecorder) に対応していません。');
-    startBtn.disabled = true;
-  } else if (!SpeechRecognition) {
-    showHint('⚠️ このブラウザは Web Speech API に非対応のためテキスト化は無効です。録音のみ動作します。Chrome / Edge を推奨。');
-  } else {
-    showHint('💡 ヒント: 初回はマイク許可が必要です。音声は <strong>WebM/Opus</strong> で録音され、文字起こしは <strong>Web Speech API (ja-JP)</strong> で並行処理されます。');
+  /* ===== Notion send ===== */
+  async function sendToNotion(payload) {
+    const url = (localStorage.getItem(LS.NOTION) || '').trim();
+    if (!url) throw new Error('Notion の Apps Script URL が未設定です');
+    const res = await fetch(url, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json().catch(()=>({}));
+    if (json?.ok === false) throw new Error(json.error || 'Unknown error');
+    return json;
   }
 
-  // ===== IndexedDB ラッパ =====
-  let dbPromise = null;
-  function openDB() {
-    if (dbPromise) return dbPromise;
-    dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(STORE)) {
-          const store = db.createObjectStore(STORE, { keyPath: 'id' });
-          store.createIndex('createdAt', 'createdAt');
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-    return dbPromise;
-  }
-  async function dbAdd(entry) {
-    const db = await openDB();
-    return new Promise((res, rej) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).add(entry);
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
-  }
-  async function dbPut(entry) {
-    const db = await openDB();
-    return new Promise((res, rej) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(entry);
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
-  }
-  async function dbDelete(id) {
-    const db = await openDB();
-    return new Promise((res, rej) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).delete(id);
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
-  }
-  async function dbGetAll() {
-    const db = await openDB();
-    return new Promise((res, rej) => {
-      const tx = db.transaction(STORE, 'readonly');
-      const req = tx.objectStore(STORE).getAll();
-      req.onsuccess = () => res(req.result || []);
-      req.onerror = () => rej(req.error);
-    });
-  }
-  async function dbClear() {
-    const db = await openDB();
-    return new Promise((res, rej) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).clear();
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
-  }
-
-  // ===== 状態 =====
-  let mediaStream = null;
-  let mediaRecorder = null;
-  let recordedChunks = [];
-  let recognition = null;
-  let isRecording = false;
-  let finalTranscript = '';
-  let interimTranscript = '';
-  let startedAt = null;
-  let timerInterval = null;
-  let manuallyStopped = false;
-  let audioContext = null;
-  let analyserNode = null;
-  let meterRafId = null;
-  const audioUrlCache = new Map(); // id -> objectURL
-
-  // ===== UI ヘルパ =====
-  function setStatus(text, live) {
-    statusText.textContent = text;
-    statusDot.classList.toggle('live', !!live);
-  }
-  function renderTranscript() {
-    if (!finalTranscript && !interimTranscript) {
-      transcriptArea.innerHTML = '<span class="placeholder">「録音開始」を押して話してください…</span>';
-      return;
-    }
-    transcriptArea.innerHTML =
-      escapeHtml(finalTranscript) +
-      (interimTranscript ? '<span class="interim">' + escapeHtml(interimTranscript) + '</span>' : '');
-  }
-  function escapeHtml(s) {
-    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-  function fmtTime(sec) {
-    const m = Math.floor(sec / 60).toString().padStart(2, '0');
-    const s = Math.floor(sec % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  }
-  function fmtBytes(b) {
-    if (!b) return '0 B';
-    const u = ['B', 'KB', 'MB', 'GB'];
-    let i = 0;
-    while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
-    return b.toFixed(b < 10 && i > 0 ? 1 : 0) + ' ' + u[i];
-  }
-
-  // ===== レベルメーター =====
-  function startMeter(stream) {
-    try {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const src = audioContext.createMediaStreamSource(stream);
-      analyserNode = audioContext.createAnalyser();
-      analyserNode.fftSize = 512;
-      src.connect(analyserNode);
-      const data = new Uint8Array(analyserNode.frequencyBinCount);
-      const tick = () => {
-        analyserNode.getByteTimeDomainData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) {
-          const v = (data[i] - 128) / 128;
-          sum += v * v;
-        }
-        const rms = Math.sqrt(sum / data.length);
-        const pct = Math.min(100, Math.round(rms * 300));
-        meterFill.style.width = pct + '%';
-        meterRafId = requestAnimationFrame(tick);
-      };
-      tick();
-    } catch (e) {
-      console.warn('Meter error:', e);
-    }
-  }
-  function stopMeter() {
-    if (meterRafId) cancelAnimationFrame(meterRafId);
-    meterRafId = null;
-    meterFill.style.width = '0%';
-    if (audioContext) { audioContext.close().catch(() => {}); audioContext = null; }
-    analyserNode = null;
-  }
-
-  // ===== 録音開始 =====
-  startBtn.addEventListener('click', async () => {
-    if (isRecording) return;
-    errorEl.style.display = 'none';
-    finalTranscript = '';
-    interimTranscript = '';
-    manuallyStopped = false;
-    startedAt = new Date();
-    recordedChunks = [];
-
-    try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (err) {
-      showError('マイクへのアクセスが拒否されました: ' + err.message);
-      return;
-    }
-
-    // MediaRecorder
-    const mimeCandidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
-    const mimeType = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
-    try {
-      mediaRecorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
-    } catch (err) {
-      showError('録音を開始できません: ' + err.message);
-      cleanupStream();
-      return;
-    }
-
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-    };
-    mediaRecorder.onstop = async () => {
-      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-      const text = (finalTranscript + interimTranscript).trim();
-      // キャンセル時 (manuallyStopped=true, recordedChunks空ではない) は保存しない判定を呼出側でやる
-      if (!cancelFlag && (text || blob.size > 0)) {
-        const entry = {
-          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          text: text,
-          createdAt: startedAt ? startedAt.toISOString() : new Date().toISOString(),
-          durationSec: startedAt ? Math.round((Date.now() - startedAt.getTime()) / 1000) : 0,
-          audioBlob: blob,
-          audioType: blob.type,
-          audioSize: blob.size,
-        };
-        try {
-          await dbAdd(entry);
-          await renderList();
-          // 自動パイプライン: 要約 → シート送信
-          if (localStorage.getItem(LS_AUTO_PIPELINE) === '1' && entry.text) {
-            runAutoPipeline(entry.id).catch((err) => showError('自動パイプライン失敗: ' + err.message));
-          }
-        } catch (err) {
-          showError('保存に失敗しました: ' + err.message);
-        }
-      }
-      cancelFlag = false;
-      finalTranscript = '';
-      interimTranscript = '';
-      renderTranscript();
-      cleanupStream();
-    };
-
-    mediaRecorder.start();
-    startMeter(mediaStream);
-    startTimer();
-
-    // 音声認識 (利用可能なら並行起動)
-    if (SpeechRecognition) {
-      recognition = new SpeechRecognition();
-      recognition.lang = 'ja-JP';
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.onresult = (e) => {
-        interimTranscript = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) finalTranscript += t;
-          else interimTranscript += t;
-        }
-        renderTranscript();
-      };
-      recognition.onerror = (e) => {
-        if (e.error === 'no-speech' || e.error === 'aborted') return;
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          showError('音声認識のためのマイク権限がありません。');
-        } else {
-          console.warn('SpeechRecognition error:', e.error);
-        }
-      };
-      recognition.onend = () => {
-        if (!manuallyStopped && isRecording) {
-          try { recognition.start(); } catch (_) {}
-        }
-      };
-      try { recognition.start(); } catch (_) {}
-    }
-
-    isRecording = true;
-    setStatus('録音中…', true);
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    cancelBtn.disabled = false;
-    renderTranscript();
-  });
-
-  // ===== 停止 & 保存 =====
-  let cancelFlag = false;
-  stopBtn.addEventListener('click', () => {
-    if (!isRecording) return;
-    manuallyStopped = true;
-    if (recognition) { try { recognition.stop(); } catch (_) {} }
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-    stopTimer();
-    isRecording = false;
-    setStatus('保存中…', false);
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    cancelBtn.disabled = true;
-    stopMeter();
-    setTimeout(() => setStatus('待機中', false), 800);
-  });
-
-  // ===== キャンセル =====
-  cancelBtn.addEventListener('click', () => {
-    if (!isRecording) return;
-    cancelFlag = true;
-    manuallyStopped = true;
-    if (recognition) { try { recognition.abort(); } catch (_) {} }
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-    stopTimer();
-    isRecording = false;
-    setStatus('待機中', false);
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    cancelBtn.disabled = true;
-    finalTranscript = '';
-    interimTranscript = '';
-    renderTranscript();
-    stopMeter();
-  });
-
-  function cleanupStream() {
-    if (mediaStream) { mediaStream.getTracks().forEach((t) => t.stop()); mediaStream = null; }
-    mediaRecorder = null;
-    recognition = null;
-  }
-
-  // ===== タイマー =====
-  function startTimer() {
-    timerEl.textContent = '00:00';
-    timerInterval = setInterval(() => {
-      const sec = Math.floor((Date.now() - startedAt.getTime()) / 1000);
-      timerEl.textContent = fmtTime(sec);
-    }, 500);
-  }
-  function stopTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = null;
-  }
-
-  // ===== リスト =====
-  function revokeAudioUrls() {
-    audioUrlCache.forEach((url) => URL.revokeObjectURL(url));
-    audioUrlCache.clear();
-  }
+  /* ===== List ===== */
+  const audioCache = new Map();
+  function revokeAll() { audioCache.forEach(u => URL.revokeObjectURL(u)); audioCache.clear(); }
 
   async function renderList() {
-    revokeAudioUrls();
-    const q = searchInput.value.trim().toLowerCase();
+    revokeAll();
+    const q   = $('searchInput').value.trim().toLowerCase();
     const all = await dbGetAll();
-    all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-    countBadge.textContent = all.length;
-
-    const totalSec = all.reduce((s, e) => s + (e.durationSec || 0), 0);
-    const totalBytes = all.reduce((s, e) => s + (e.audioSize || 0), 0);
-    statsEl.innerHTML = all.length
-      ? `合計 <strong>${all.length}</strong>件 ・ <strong>${fmtTime(totalSec)}</strong> ・ <strong>${fmtBytes(totalBytes)}</strong>`
-      : '';
-
-    const filtered = q ? all.filter((e) => (e.text || '').toLowerCase().includes(q)) : all;
-    if (!filtered.length) {
-      listEl.innerHTML = '<div class="empty">' + (all.length ? '一致する項目はありません' : 'まだ録音はありません') + '</div>';
-      return;
-    }
-
-    listEl.innerHTML = filtered.map((e) => {
-      const d = new Date(e.createdAt);
-      const dateStr = d.toLocaleString('ja-JP');
-      let audioUrl = '';
-      if (e.audioBlob && e.audioBlob.size > 0) {
-        audioUrl = URL.createObjectURL(e.audioBlob);
-        audioUrlCache.set(e.id, audioUrl);
+    all.sort((a,b) => a.createdAt < b.createdAt ? 1 : -1);
+    $('cntBadge').textContent = all.length;
+    const rows = q ? all.filter(e => (e.clientName||'').toLowerCase().includes(q) || (e.text||'').toLowerCase().includes(q)) : all;
+    if (!rows.length) { $('listEl').innerHTML = `<div class="empty">${all.length?'一致する項目はありません':'まだ録音はありません'}</div>`; return; }
+    $('listEl').innerHTML = rows.map(e => {
+      let audioHtml = '';
+      if (e.audioBlob?.size > 0) {
+        const u = URL.createObjectURL(e.audioBlob);
+        audioCache.set(e.id, u);
+        audioHtml = `<audio class="mtg-audio" controls src="${u}"></audio>`;
       }
       return `
-        <div class="item">
-          <div class="item-main">
-            <div class="item-meta">
-              <span>📅 ${escapeHtml(dateStr)}</span>
-              <span>⏱ ${fmtTime(e.durationSec || 0)}</span>
-              <span>📝 ${(e.text || '').length}文字</span>
-              <span>💾 ${fmtBytes(e.audioSize || 0)}</span>
-            </div>
-            <div class="item-text" data-id="${e.id}">${escapeHtml(e.text || '(文字起こしなし)')}</div>
-            ${audioUrl ? `<audio class="item-audio" controls src="${audioUrl}"></audio>` : ''}
-            ${e.summary ? `
-              <div class="summary-box">
-                <div class="summary-label">✨ AI要約</div>${escapeHtml(e.summary)}
-              </div>` : ''}
-            ${e.sentAt ? `<div style="font-size:11px;color:var(--success);margin-top:6px;">🗒️ Notion 送信済 (${new Date(e.sentAt).toLocaleString('ja-JP')})</div>` : ''}
+        <div class="mtg-card">
+          <div class="mtg-client">👤 ${esc(e.clientName||'（名前なし）')}</div>
+          <div class="mtg-date">📅 ${esc(e.mtgDate ? fmtDate(e.mtgDate) : fmtDt(e.createdAt))}</div>
+          <div class="mtg-meta">
+            <span>⏱ ${fmtDur(e.durationSec||0)}</span>
+            <span>📝 ${(e.text||'').length}文字</span>
           </div>
-          <div class="item-actions">
-            <button class="icon-btn summarize" data-id="${e.id}" ${!e.text ? 'disabled' : ''}>${e.summary ? '再要約' : '要約'}</button>
-            <button class="icon-btn send" data-id="${e.id}">${e.sentAt ? '再送信' : 'Notionへ送信'}</button>
-            <button class="icon-btn copy" data-id="${e.id}">コピー</button>
-            <button class="icon-btn edit" data-id="${e.id}">編集</button>
-            <button class="icon-btn dl" data-id="${e.id}">音声DL</button>
-            <button class="icon-btn del" data-id="${e.id}">削除</button>
+          ${e.summary ? `<div class="mtg-summary">${esc(e.summary)}</div>` : ''}
+          ${e.sentAt  ? `<div class="mtg-sent">🗒️ Notion 送信済 (${new Date(e.sentAt).toLocaleString('ja-JP')})</div>` : ''}
+          ${audioHtml}
+          <div class="mtg-actions">
+            <button class="btn btn-ghost btn-sm" data-act="send" data-id="${e.id}">${e.sentAt?'再送信':'Notion 送信'}</button>
+            <button class="btn btn-ghost btn-sm" data-act="copy" data-id="${e.id}">コピー</button>
+            <button class="btn btn-ghost btn-sm" data-act="del"  data-id="${e.id}">削除</button>
           </div>
         </div>`;
     }).join('');
   }
 
-  listEl.addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('button');
+  $('listEl').addEventListener('click', async ev => {
+    const btn = ev.target.closest('[data-act]');
     if (!btn) return;
-    const id = btn.dataset.id;
-    const all = await dbGetAll();
-    const entry = all.find((e) => e.id === id);
+    const { act, id } = btn.dataset;
+    const all   = await dbGetAll();
+    const entry = all.find(e => e.id === id);
     if (!entry) return;
-
-    if (btn.classList.contains('del')) {
-      if (confirm('この録音を削除しますか？')) {
-        await dbDelete(id);
-        await renderList();
-      }
-    } else if (btn.classList.contains('copy')) {
+    if (act === 'del') {
+      if (!confirm('この録音を削除しますか？')) return;
+      await dbDelete(id); await renderList();
+    } else if (act === 'copy') {
+      const t = `【${entry.clientName}】${entry.mtgDate ? fmtDate(entry.mtgDate) : ''}\n\n${entry.summary||entry.text||''}`;
+      await navigator.clipboard.writeText(t).catch(()=>{});
+      btn.textContent = '✓ コピー済'; setTimeout(() => btn.textContent = 'コピー', 1200);
+    } else if (act === 'send') {
+      btn.disabled = true; btn.textContent = '送信中…';
       try {
-        await navigator.clipboard.writeText(entry.text || '');
-        const old = btn.textContent;
-        btn.textContent = '✓ コピー済';
-        setTimeout(() => (btn.textContent = old), 1200);
-      } catch (e) { showError('コピーに失敗: ' + e.message); }
-    } else if (btn.classList.contains('edit')) {
-      const next = prompt('テキストを編集:', entry.text || '');
-      if (next !== null && next !== entry.text) {
-        entry.text = next;
-        entry.updatedAt = new Date().toISOString();
-        await dbPut(entry);
-        await renderList();
-      }
-    } else if (btn.classList.contains('summarize')) {
-      if (!entry.text) return;
-      const oldLabel = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = '⏳ 要約中…';
-      errorEl.style.display = 'none';
-      try {
-        const summary = await summarizeWithGemini(entry.text);
-        entry.summary = summary;
-        entry.summarizedAt = new Date().toISOString();
-        await dbPut(entry);
-        await renderList();
-      } catch (err) {
-        showError(err.message);
-        btn.disabled = false;
-        btn.textContent = oldLabel;
-      }
-    } else if (btn.classList.contains('send')) {
-      const oldLabel = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = '⏳ 送信中…';
-      errorEl.style.display = 'none';
-      try {
-        await sendToSheet({
-          id: entry.id,
-          createdAt: entry.createdAt,
-          durationSec: entry.durationSec || 0,
-          text: entry.text || '',
-          summary: entry.summary || '',
-        });
-        entry.sentAt = new Date().toISOString();
-        await dbPut(entry);
-        await renderList();
-      } catch (err) {
-        showError('シート送信失敗: ' + err.message);
-        btn.disabled = false;
-        btn.textContent = oldLabel;
-      }
-    } else if (btn.classList.contains('dl')) {
-      if (!entry.audioBlob) return;
-      const ext = (entry.audioType || '').includes('mp4') ? 'm4a' : (entry.audioType || '').includes('ogg') ? 'ogg' : 'webm';
-      const url = URL.createObjectURL(entry.audioBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recording_${entry.id}.${ext}`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+        await sendToNotion({ id: entry.id, clientName: entry.clientName||'', mtgDate: entry.mtgDate||'', text: entry.text||'', summary: entry.summary||'', durationSec: entry.durationSec||0, createdAt: entry.createdAt });
+        entry.sentAt = new Date().toISOString(); await dbPut(entry); await renderList();
+      } catch(err) { showError('Notion 送信失敗: ' + err.message); btn.disabled = false; btn.textContent = 'Notion 送信'; }
     }
   });
 
-  searchInput.addEventListener('input', () => { renderList(); });
-
-  clearBtn.addEventListener('click', async () => {
+  $('searchInput').addEventListener('input', renderList);
+  $('clearAllBtn').addEventListener('click', async () => {
     const all = await dbGetAll();
     if (!all.length) return;
-    if (confirm(`${all.length}件すべて削除します。よろしいですか？`)) {
-      await dbClear();
-      await renderList();
-    }
+    if (confirm(`${all.length}件すべて削除しますか？`)) { await dbClear(); await renderList(); }
   });
 
-  // 初期描画
+  /* ===== Helpers ===== */
+  function renderT(el, fin, intr) {
+    if (!fin && !intr) { el.innerHTML = '<span class="ph">認識中…</span>'; return; }
+    el.innerHTML = esc(fin) + (intr ? `<span class="interim">${esc(intr)}</span>` : '');
+  }
+  function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function fmtDate(s) {
+    if (!s) return ''; const [y,m,d] = s.split('-');
+    return `${y}年${Number(m)}月${Number(d)}日`;
+  }
+  function fmtDt(iso) { return new Date(iso).toLocaleDateString('ja-JP'); }
+  function fmtDur(sec) {
+    if (!sec) return '0秒';
+    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+    return (h?h+'時間':'') + (m?m+'分':'') + (s||(!h&&!m)?s+'秒':'');
+  }
+  function esc(s) {
+    return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
   renderList();
 })();
 </script>
