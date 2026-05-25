@@ -234,7 +234,7 @@ details[open] > summary { margin-bottom: 14px; }
     <div class="field-block">
       <div class="field-label">
         <span>🗣️ MTG 内容</span>
-        <span class="hint">録音すると文字起こしされます</span>
+        <span class="hint">話す or 直接入力</span>
       </div>
       <div class="content-rec">
         <div class="rec-row">
@@ -245,7 +245,7 @@ details[open] > summary { margin-bottom: 14px; }
             <span class="timer" id="contentTimer">00:00</span>
           </div>
         </div>
-        <div class="transcript" id="contentTrans"><span class="ph">「録音開始」を押して MTG 内容を話してください…</span></div>
+        <textarea class="field" id="contentText" rows="5" placeholder="MTG 内容を入力、または「録音開始」で音声入力…" style="resize:vertical;min-height:80px;max-height:220px;"></textarea>
       </div>
     </div>
 
@@ -487,14 +487,17 @@ details[open] > summary { margin-bottom: 14px; }
         contentStopBtn = $('contentStopBtn'),
         contentDot     = $('contentDot'),
         contentTimer   = $('contentTimer'),
-        contentTrans   = $('contentTrans');
+        contentText    = $('contentText');
   let contentFinal = '', contentInterim = '', contentStartedAt = null;
+
+  contentText.addEventListener('input', () => { state.contentText = contentText.value.trim(); updateSaveBtn(); });
 
   contentRecBtn.addEventListener('click', async () => {
     if (state.isRecording) { showError('別の録音が動作中です。先に停止してください'); return; }
     hideNotice();
     contentFinal = ''; contentInterim = ''; state.contentAudio = null; recChunks = [];
-    contentTrans.innerHTML = '<span class="ph">🎤 認識中…</span>';
+    contentText.value = '';
+    contentText.readOnly = true;
 
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -516,14 +519,13 @@ details[open] > summary { margin-bottom: 14px; }
     startSpeechRec(
       fin  => {
         contentFinal = fin;
-        renderT(contentTrans, fin, contentInterim);
-        const v = (fin + contentInterim).trim();
-        state.contentText = v;
+        contentText.value = fin + contentInterim;
+        state.contentText = (fin + contentInterim).trim();
         updateSaveBtn();
       },
       intr => {
         contentInterim = intr;
-        renderT(contentTrans, contentFinal, intr);
+        contentText.value = contentFinal + intr;
         const v = (contentFinal + intr).trim();
         if (v) { state.contentText = v; updateSaveBtn(); }
       }
@@ -534,6 +536,8 @@ details[open] > summary { margin-bottom: 14px; }
     state.durationSec = Math.round((Date.now() - (contentStartedAt || Date.now())) / 1000);
     // 確定済み + 認識中の両方を含めて保存対象にする
     state.contentText = (contentFinal + contentInterim).trim();
+    contentText.value = state.contentText;
+    contentText.readOnly = false;
     stopAll();
     state.isRecording = null;
     contentRecBtn.disabled = false; contentStopBtn.disabled = true;
@@ -568,7 +572,7 @@ details[open] > summary { margin-bottom: 14px; }
     } else if (!state.clientName) {
       saveBtn.textContent = '👤 クライアント名を入力してください';
     } else if (!state.contentText) {
-      saveBtn.textContent = '🗣️ MTG 内容を録音してください';
+      saveBtn.textContent = '🗣️ MTG 内容を入力してください';
     } else if (dest.length === 0) {
       saveBtn.textContent = '📤 保存先を選んでください';
     } else {
@@ -665,7 +669,8 @@ details[open] > summary { margin-bottom: 14px; }
     clientFinal = '';
     contentFinal = '';
     contentInterim = '';
-    contentTrans.innerHTML = '<span class="ph">「録音開始」を押して MTG 内容を話してください…</span>';
+    contentText.value = '';
+    contentText.readOnly = false;
     contentTimer.textContent = '00:00';
     dateField.value = todayStr();
     saveBtn.disabled = true;
@@ -793,10 +798,6 @@ ${text}
   });
 
   /* ===== Helpers ===== */
-  function renderT(el, fin, intr) {
-    if (!fin && !intr) { el.innerHTML = '<span class="ph">🎤 認識中…</span>'; return; }
-    el.innerHTML = esc(fin) + (intr ? `<span class="interim">${esc(intr)}</span>` : '');
-  }
   function todayStr() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
