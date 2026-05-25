@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音声録音 & テキスト化</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .container { max-width: 920px; margin: 0 auto; }
+  h1 {
+    font-size: 24px;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  button {
+    background: var(--accent);
+    color: #0f172a;
+    border: 0;
+    padding: 12px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity .15s, transform .05s;
+  }
+  button:hover { opacity: .9; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.danger { background: var(--danger); color: white; }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--danger); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .3; }
+  }
+  .meter-wrap {
+    width: 120px;
+    height: 8px;
+    background: #0f172a;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .meter-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--success), var(--accent), var(--danger));
+    transition: width .08s linear;
+  }
+  .timer {
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    font-weight: 600;
+    min-width: 56px;
+    text-align: right;
+  }
+  .transcript-area {
+    margin-top: 16px;
+    min-height: 80px;
+    padding: 16px;
+    background: #0f172a;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .transcript-area .interim { color: var(--muted); }
+  .transcript-area .placeholder { color: var(--muted); font-style: italic; }
+  .list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .list-header h2 { margin: 0; font-size: 18px; }
+  .search {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-size: 14px;
+    width: 220px;
+  }
+  .list { display: flex; flex-direction: column; gap: 10px; }
+  .item {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .item-main { flex: 1; min-width: 0; }
+  .item-meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .item-text {
+    font-size: 14px;
+    line-height: 1.55;
+    word-break: break-word;
+    margin-bottom: 8px;
+  }
+  .item-audio {
+    width: 100%;
+    height: 32px;
+  }
+  .item-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-direction: column;
+  }
+  .icon-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    font-size: 13px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .icon-btn:hover { color: var(--text); }
+  .icon-btn.del:hover { color: var(--danger); border-color: var(--danger); }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    padding: 32px;
+    font-size: 14px;
+  }
+  .badge {
+    background: var(--border);
+    color: var(--text);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+  }
+  .error {
+    background: rgba(239, 68, 68, .1);
+    border: 1px solid var(--danger);
+    color: #fecaca;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+  .hint {
+    background: rgba(56, 189, 248, .1);
+    border: 1px solid var(--accent);
+    color: #bae6fd;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .stats strong { color: var(--text); }
+  .settings-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .settings-row input, .settings-row select {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  .settings-row input[type="password"] { flex: 1; min-width: 240px; font-family: monospace; }
+  .settings-row label { font-size: 13px; color: var(--muted); }
+  details > summary {
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 4px 0;
+    user-select: none;
+  }
+  details[open] > summary { margin-bottom: 12px; }
+  .summary-box {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: rgba(34, 197, 94, .08);
+    border-left: 3px solid var(--success);
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #d1fae5;
+  }
+  .summary-label {
+    font-size: 11px;
+    color: var(--success);
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .saved-flash {
+    color: var(--success);
+    font-size: 12px;
+    margin-left: 8px;
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .saved-flash.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎙️ 音声録音 & テキスト化</h1>
+  <p class="subtitle">マイク音声をブラウザで録音し、Web Speech API で日本語テキスト化。Gemini API で要約まで。データは IndexedDB に保存。</p>
+
+  <div id="error" class="error" style="display:none;"></div>
+  <div id="hint" class="hint" style="display:none;"></div>
+
+  <div class="card">
+    <details id="settingsDetails">
+      <summary>⚙️ AI 要約設定 (Gemini API)</summary>
+      <div class="settings-row">
+        <label for="apiKeyInput">APIキー:</label>
+        <input id="apiKeyInput" type="password" placeholder="AIza... (https://aistudio.google.com で取得)" autocomplete="off">
+        <select id="modelSelect">
+          <option value="gemini-2.5-flash">gemini-2.5-flash (推奨/無料枠)</option>
+          <option value="gemini-2.5-pro">gemini-2.5-pro (高品質)</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+          <option value="gemini-1.5-flash">gemini-1.5-flash (旧)</option>
+        </select>
+        <button id="saveKeyBtn">保存</button>
+        <span class="saved-flash" id="savedFlash">✓ 保存しました</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:8px 0 0;">APIキーはこのブラウザの localStorage にのみ保存され、外部送信は Gemini API への要約リクエスト時のみです。</p>
+    </details>
+  </div>
+
+  <div class="card">
+    <div class="controls">
+      <button id="startBtn">● 録音開始</button>
+      <button id="stopBtn" class="danger" disabled>■ 停止 & 保存</button>
+      <button id="cancelBtn" class="ghost" disabled>キャンセル</button>
+      <div class="status">
+        <div class="meter-wrap"><div class="meter-fill" id="meterFill"></div></div>
+        <span class="timer" id="timer">00:00</span>
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">待機中</span>
+      </div>
+    </div>
+    <div class="transcript-area" id="transcriptArea">
+      <span class="placeholder">「録音開始」を押して話してください…</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="list-header">
+      <h2>📋 保存された録音 <span class="badge" id="countBadge">0</span></h2>
+      <div style="display:flex; gap:8px; flex-wrap: wrap;">
+        <input id="searchInput" class="search" type="text" placeholder="テキスト検索…">
+        <button id="exportBtn" class="ghost">JSONエクスポート</button>
+        <button id="clearBtn" class="ghost">全削除</button>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div id="list" class="list"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ===== 定数 =====
+  const DB_NAME = 'voiceRecorderDB';
+  const STORE = 'recordings';
+  const DB_VERSION = 1;
+  const LS_API_KEY = 'gemini_api_key';
+  const LS_MODEL = 'gemini_model';
+
+  // ===== DOM =====
+  const $ = (id) => document.getElementById(id);
+  const startBtn = $('startBtn');
+  const stopBtn = $('stopBtn');
+  const cancelBtn = $('cancelBtn');
+  const statusDot = $('statusDot');
+  const statusText = $('statusText');
+  const transcriptArea = $('transcriptArea');
+  const listEl = $('list');
+  const countBadge = $('countBadge');
+  const searchInput = $('searchInput');
+  const exportBtn = $('exportBtn');
+  const clearBtn = $('clearBtn');
+  const errorEl = $('error');
+  const hintEl = $('hint');
+  const timerEl = $('timer');
+  const meterFill = $('meterFill');
+  const statsEl = $('stats');
+  const apiKeyInput = $('apiKeyInput');
+  const modelSelect = $('modelSelect');
+  const saveKeyBtn = $('saveKeyBtn');
+  const savedFlash = $('savedFlash');
+  const settingsDetails = $('settingsDetails');
+
+  function showError(msg) { errorEl.style.display = 'block'; errorEl.textContent = msg; }
+  function showHint(msg) { hintEl.style.display = 'block'; hintEl.innerHTML = msg; }
+
+  // ===== 設定 (API キー) =====
+  apiKeyInput.value = localStorage.getItem(LS_API_KEY) || '';
+  modelSelect.value = localStorage.getItem(LS_MODEL) || 'gemini-2.5-flash';
+  if (!apiKeyInput.value) settingsDetails.open = true;
+  saveKeyBtn.addEventListener('click', () => {
+    localStorage.setItem(LS_API_KEY, apiKeyInput.value.trim());
+    localStorage.setItem(LS_MODEL, modelSelect.value);
+    savedFlash.classList.add('show');
+    setTimeout(() => savedFlash.classList.remove('show'), 1500);
+  });
+  modelSelect.addEventListener('change', () => {
+    localStorage.setItem(LS_MODEL, modelSelect.value);
+  });
+
+  // ===== Gemini API 呼び出し =====
+  async function summarizeWithGemini(text) {
+    const key = (localStorage.getItem(LS_API_KEY) || '').trim();
+    if (!key) throw new Error('APIキーが未設定です。上の「⚙️ AI 要約設定」から設定してください。');
+    const model = localStorage.getItem(LS_MODEL) || 'gemini-2.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    const prompt = `以下は音声を文字起こししたテキストです。日本語で簡潔に要約してください。
+- まず1〜2文の全体要約を書く
+- 次に「・」で重要ポイントを3〜5項目箇条書き
+- 文字起こしの誤認識と思われる箇所は文脈から補って解釈してよい
+- 余計な前置きや見出しは不要
+
+テキスト:
+"""
+${text}
+"""`;
+    const body = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+    };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      let detail = '';
+      try { const j = await res.json(); detail = j?.error?.message || JSON.stringify(j); } catch {}
+      throw new Error(`Gemini API エラー (${res.status}): ${detail || res.statusText}`);
+    }
+    const data = await res.json();
+    const out = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('\n').trim();
+    if (!out) throw new Error('要約結果が空でした。');
+    return out;
+  }
+
+  // ===== ブラウザ対応チェック =====
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const hasMediaRecorder = typeof MediaRecorder !== 'undefined' && navigator.mediaDevices?.getUserMedia;
+
+  if (!hasMediaRecorder) {
+    showError('このブラウザは録音 API (MediaRecorder) に対応していません。');
+    startBtn.disabled = true;
+  } else if (!SpeechRecognition) {
+    showHint('⚠️ このブラウザは Web Speech API に非対応のためテキスト化は無効です。録音のみ動作します。Chrome / Edge を推奨。');
+  } else {
+    showHint('💡 ヒント: 初回はマイク許可が必要です。音声は <strong>WebM/Opus</strong> で録音され、文字起こしは <strong>Web Speech API (ja-JP)</strong> で並行処理されます。');
+  }
+
+  // ===== IndexedDB ラッパ =====
+  let dbPromise = null;
+  function openDB() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE)) {
+          const store = db.createObjectStore(STORE, { keyPath: 'id' });
+          store.createIndex('createdAt', 'createdAt');
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return dbPromise;
+  }
+  async function dbAdd(entry) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).add(entry);
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  }
+  async function dbPut(entry) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(entry);
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  }
+  async function dbDelete(id) {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(id);
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  }
+  async function dbGetAll() {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).getAll();
+      req.onsuccess = () => res(req.result || []);
+      req.onerror = () => rej(req.error);
+    });
+  }
+  async function dbClear() {
+    const db = await openDB();
+    return new Promise((res, rej) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).clear();
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+    });
+  }
+
+  // ===== 状態 =====
+  let mediaStream = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recognition = null;
+  let isRecording = false;
+  let finalTranscript = '';
+  let interimTranscript = '';
+  let startedAt = null;
+  let timerInterval = null;
+  let manuallyStopped = false;
+  let audioContext = null;
+  let analyserNode = null;
+  let meterRafId = null;
+  const audioUrlCache = new Map(); // id -> objectURL
+
+  // ===== UI ヘルパ =====
+  function setStatus(text, live) {
+    statusText.textContent = text;
+    statusDot.classList.toggle('live', !!live);
+  }
+  function renderTranscript() {
+    if (!finalTranscript && !interimTranscript) {
+      transcriptArea.innerHTML = '<span class="placeholder">「録音開始」を押して話してください…</span>';
+      return;
+    }
+    transcriptArea.innerHTML =
+      escapeHtml(finalTranscript) +
+      (interimTranscript ? '<span class="interim">' + escapeHtml(interimTranscript) + '</span>' : '');
+  }
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function fmtTime(sec) {
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = Math.floor(sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+  function fmtBytes(b) {
+    if (!b) return '0 B';
+    const u = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+    return b.toFixed(b < 10 && i > 0 ? 1 : 0) + ' ' + u[i];
+  }
+
+  // ===== レベルメーター =====
+  function startMeter(stream) {
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioContext.createMediaStreamSource(stream);
+      analyserNode = audioContext.createAnalyser();
+      analyserNode.fftSize = 512;
+      src.connect(analyserNode);
+      const data = new Uint8Array(analyserNode.frequencyBinCount);
+      const tick = () => {
+        analyserNode.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        const pct = Math.min(100, Math.round(rms * 300));
+        meterFill.style.width = pct + '%';
+        meterRafId = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (e) {
+      console.warn('Meter error:', e);
+    }
+  }
+  function stopMeter() {
+    if (meterRafId) cancelAnimationFrame(meterRafId);
+    meterRafId = null;
+    meterFill.style.width = '0%';
+    if (audioContext) { audioContext.close().catch(() => {}); audioContext = null; }
+    analyserNode = null;
+  }
+
+  // ===== 録音開始 =====
+  startBtn.addEventListener('click', async () => {
+    if (isRecording) return;
+    errorEl.style.display = 'none';
+    finalTranscript = '';
+    interimTranscript = '';
+    manuallyStopped = false;
+    startedAt = new Date();
+    recordedChunks = [];
+
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      showError('マイクへのアクセスが拒否されました: ' + err.message);
+      return;
+    }
+
+    // MediaRecorder
+    const mimeCandidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+    const mimeType = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+    try {
+      mediaRecorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
+    } catch (err) {
+      showError('録音を開始できません: ' + err.message);
+      cleanupStream();
+      return;
+    }
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+    };
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      const text = (finalTranscript + interimTranscript).trim();
+      // キャンセル時 (manuallyStopped=true, recordedChunks空ではない) は保存しない判定を呼出側でやる
+      if (!cancelFlag && (text || blob.size > 0)) {
+        const entry = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          text: text,
+          createdAt: startedAt ? startedAt.toISOString() : new Date().toISOString(),
+          durationSec: startedAt ? Math.round((Date.now() - startedAt.getTime()) / 1000) : 0,
+          audioBlob: blob,
+          audioType: blob.type,
+          audioSize: blob.size,
+        };
+        try {
+          await dbAdd(entry);
+          await renderList();
+        } catch (err) {
+          showError('保存に失敗しました: ' + err.message);
+        }
+      }
+      cancelFlag = false;
+      finalTranscript = '';
+      interimTranscript = '';
+      renderTranscript();
+      cleanupStream();
+    };
+
+    mediaRecorder.start();
+    startMeter(mediaStream);
+    startTimer();
+
+    // 音声認識 (利用可能なら並行起動)
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'ja-JP';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.onresult = (e) => {
+        interimTranscript = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) finalTranscript += t;
+          else interimTranscript += t;
+        }
+        renderTranscript();
+      };
+      recognition.onerror = (e) => {
+        if (e.error === 'no-speech' || e.error === 'aborted') return;
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          showError('音声認識のためのマイク権限がありません。');
+        } else {
+          console.warn('SpeechRecognition error:', e.error);
+        }
+      };
+      recognition.onend = () => {
+        if (!manuallyStopped && isRecording) {
+          try { recognition.start(); } catch (_) {}
+        }
+      };
+      try { recognition.start(); } catch (_) {}
+    }
+
+    isRecording = true;
+    setStatus('録音中…', true);
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    cancelBtn.disabled = false;
+    renderTranscript();
+  });
+
+  // ===== 停止 & 保存 =====
+  let cancelFlag = false;
+  stopBtn.addEventListener('click', () => {
+    if (!isRecording) return;
+    manuallyStopped = true;
+    if (recognition) { try { recognition.stop(); } catch (_) {} }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    stopTimer();
+    isRecording = false;
+    setStatus('保存中…', false);
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    cancelBtn.disabled = true;
+    stopMeter();
+    setTimeout(() => setStatus('待機中', false), 800);
+  });
+
+  // ===== キャンセル =====
+  cancelBtn.addEventListener('click', () => {
+    if (!isRecording) return;
+    cancelFlag = true;
+    manuallyStopped = true;
+    if (recognition) { try { recognition.abort(); } catch (_) {} }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    stopTimer();
+    isRecording = false;
+    setStatus('待機中', false);
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    cancelBtn.disabled = true;
+    finalTranscript = '';
+    interimTranscript = '';
+    renderTranscript();
+    stopMeter();
+  });
+
+  function cleanupStream() {
+    if (mediaStream) { mediaStream.getTracks().forEach((t) => t.stop()); mediaStream = null; }
+    mediaRecorder = null;
+    recognition = null;
+  }
+
+  // ===== タイマー =====
+  function startTimer() {
+    timerEl.textContent = '00:00';
+    timerInterval = setInterval(() => {
+      const sec = Math.floor((Date.now() - startedAt.getTime()) / 1000);
+      timerEl.textContent = fmtTime(sec);
+    }, 500);
+  }
+  function stopTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+  }
+
+  // ===== リスト =====
+  function revokeAudioUrls() {
+    audioUrlCache.forEach((url) => URL.revokeObjectURL(url));
+    audioUrlCache.clear();
+  }
+
+  async function renderList() {
+    revokeAudioUrls();
+    const q = searchInput.value.trim().toLowerCase();
+    const all = await dbGetAll();
+    all.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    countBadge.textContent = all.length;
+
+    const totalSec = all.reduce((s, e) => s + (e.durationSec || 0), 0);
+    const totalBytes = all.reduce((s, e) => s + (e.audioSize || 0), 0);
+    statsEl.innerHTML = all.length
+      ? `合計 <strong>${all.length}</strong>件 ・ <strong>${fmtTime(totalSec)}</strong> ・ <strong>${fmtBytes(totalBytes)}</strong>`
+      : '';
+
+    const filtered = q ? all.filter((e) => (e.text || '').toLowerCase().includes(q)) : all;
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="empty">' + (all.length ? '一致する項目はありません' : 'まだ録音はありません') + '</div>';
+      return;
+    }
+
+    listEl.innerHTML = filtered.map((e) => {
+      const d = new Date(e.createdAt);
+      const dateStr = d.toLocaleString('ja-JP');
+      let audioUrl = '';
+      if (e.audioBlob && e.audioBlob.size > 0) {
+        audioUrl = URL.createObjectURL(e.audioBlob);
+        audioUrlCache.set(e.id, audioUrl);
+      }
+      return `
+        <div class="item">
+          <div class="item-main">
+            <div class="item-meta">
+              <span>📅 ${escapeHtml(dateStr)}</span>
+              <span>⏱ ${fmtTime(e.durationSec || 0)}</span>
+              <span>📝 ${(e.text || '').length}文字</span>
+              <span>💾 ${fmtBytes(e.audioSize || 0)}</span>
+            </div>
+            <div class="item-text" data-id="${e.id}">${escapeHtml(e.text || '(文字起こしなし)')}</div>
+            ${audioUrl ? `<audio class="item-audio" controls src="${audioUrl}"></audio>` : ''}
+            ${e.summary ? `
+              <div class="summary-box">
+                <div class="summary-label">✨ AI要約</div>${escapeHtml(e.summary)}
+              </div>` : ''}
+          </div>
+          <div class="item-actions">
+            <button class="icon-btn summarize" data-id="${e.id}" ${!e.text ? 'disabled' : ''}>${e.summary ? '再要約' : '要約'}</button>
+            <button class="icon-btn copy" data-id="${e.id}">コピー</button>
+            <button class="icon-btn edit" data-id="${e.id}">編集</button>
+            <button class="icon-btn dl" data-id="${e.id}">音声DL</button>
+            <button class="icon-btn del" data-id="${e.id}">削除</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  listEl.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const all = await dbGetAll();
+    const entry = all.find((e) => e.id === id);
+    if (!entry) return;
+
+    if (btn.classList.contains('del')) {
+      if (confirm('この録音を削除しますか？')) {
+        await dbDelete(id);
+        await renderList();
+      }
+    } else if (btn.classList.contains('copy')) {
+      try {
+        await navigator.clipboard.writeText(entry.text || '');
+        const old = btn.textContent;
+        btn.textContent = '✓ コピー済';
+        setTimeout(() => (btn.textContent = old), 1200);
+      } catch (e) { showError('コピーに失敗: ' + e.message); }
+    } else if (btn.classList.contains('edit')) {
+      const next = prompt('テキストを編集:', entry.text || '');
+      if (next !== null && next !== entry.text) {
+        entry.text = next;
+        entry.updatedAt = new Date().toISOString();
+        await dbPut(entry);
+        await renderList();
+      }
+    } else if (btn.classList.contains('summarize')) {
+      if (!entry.text) return;
+      const oldLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ 要約中…';
+      errorEl.style.display = 'none';
+      try {
+        const summary = await summarizeWithGemini(entry.text);
+        entry.summary = summary;
+        entry.summarizedAt = new Date().toISOString();
+        await dbPut(entry);
+        await renderList();
+      } catch (err) {
+        showError(err.message);
+        btn.disabled = false;
+        btn.textContent = oldLabel;
+      }
+    } else if (btn.classList.contains('dl')) {
+      if (!entry.audioBlob) return;
+      const ext = (entry.audioType || '').includes('mp4') ? 'm4a' : (entry.audioType || '').includes('ogg') ? 'ogg' : 'webm';
+      const url = URL.createObjectURL(entry.audioBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recording_${entry.id}.${ext}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  });
+
+  searchInput.addEventListener('input', () => { renderList(); });
+
+  exportBtn.addEventListener('click', async () => {
+    const all = await dbGetAll();
+    if (!all.length) { alert('エクスポートする項目がありません'); return; }
+    const stripped = all.map(({ audioBlob, ...rest }) => rest);
+    const blob = new Blob([JSON.stringify(stripped, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `transcripts_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  clearBtn.addEventListener('click', async () => {
+    const all = await dbGetAll();
+    if (!all.length) return;
+    if (confirm(`${all.length}件すべて削除します。よろしいですか？`)) {
+      await dbClear();
+      await renderList();
+    }
+  });
+
+  // 初期描画
+  renderList();
+})();
+</script>
+</body>
+</html>
