@@ -432,10 +432,12 @@ details[open] > summary { margin-bottom: 14px; }
     startSpeechRec(
       fin  => {
         clientFinal = fin;
-        if (fin.trim()) { clientField.value = fin.trim(); updateSaveBtn(); }
+        const v = fin.trim();
+        if (v) { clientField.value = v; state.clientName = v; updateSaveBtn(); }
       },
       intr => {
-        if (intr) clientField.value = (clientFinal + intr).trim();
+        const v = (clientFinal + intr).trim();
+        if (v) { clientField.value = v; state.clientName = v; updateSaveBtn(); }
       }
     );
   });
@@ -453,12 +455,12 @@ details[open] > summary { margin-bottom: 14px; }
         contentDot     = $('contentDot'),
         contentTimer   = $('contentTimer'),
         contentTrans   = $('contentTrans');
-  let contentFinal = '', contentStartedAt = null;
+  let contentFinal = '', contentInterim = '', contentStartedAt = null;
 
   contentRecBtn.addEventListener('click', async () => {
     if (state.isRecording) { showError('別の録音が動作中です。先に停止してください'); return; }
     hideNotice();
-    contentFinal = ''; state.contentAudio = null; recChunks = [];
+    contentFinal = ''; contentInterim = ''; state.contentAudio = null; recChunks = [];
     contentTrans.innerHTML = '<span class="ph">🎤 認識中…</span>';
 
     try {
@@ -479,14 +481,26 @@ details[open] > summary { margin-bottom: 14px; }
     contentStartedAt = runTimer(contentTimer);
 
     startSpeechRec(
-      fin  => { contentFinal = fin; renderT(contentTrans, fin, ''); state.contentText = fin.trim(); updateSaveBtn(); },
-      intr => renderT(contentTrans, contentFinal, intr)
+      fin  => {
+        contentFinal = fin;
+        renderT(contentTrans, fin, contentInterim);
+        const v = (fin + contentInterim).trim();
+        state.contentText = v;
+        updateSaveBtn();
+      },
+      intr => {
+        contentInterim = intr;
+        renderT(contentTrans, contentFinal, intr);
+        const v = (contentFinal + intr).trim();
+        if (v) { state.contentText = v; updateSaveBtn(); }
+      }
     );
   });
 
   contentStopBtn.addEventListener('click', () => {
     state.durationSec = Math.round((Date.now() - (contentStartedAt || Date.now())) / 1000);
-    state.contentText = contentFinal.trim();
+    // 確定済み + 認識中の両方を含めて保存対象にする
+    state.contentText = (contentFinal + contentInterim).trim();
     stopAll();
     state.isRecording = null;
     contentRecBtn.disabled = false; contentStopBtn.disabled = true;
@@ -501,6 +515,15 @@ details[open] > summary { margin-bottom: 14px; }
   function updateSaveBtn() {
     const ok = state.clientName.length > 0 && state.contentText.length > 0 && !state.isRecording;
     saveBtn.disabled = !ok;
+    if (state.isRecording) {
+      saveBtn.textContent = '⏺️ 録音停止してください';
+    } else if (!state.clientName) {
+      saveBtn.textContent = '👤 クライアント名を入力してください';
+    } else if (!state.contentText) {
+      saveBtn.textContent = '🗣️ MTG 内容を録音してください';
+    } else {
+      saveBtn.textContent = '✨ AI要約 & Notion 保存';
+    }
   }
   saveBtn.addEventListener('click', () => executePipeline());
 
@@ -566,6 +589,7 @@ details[open] > summary { margin-bottom: 14px; }
     clientField.placeholder = '例：山田商事';
     clientFinal = '';
     contentFinal = '';
+    contentInterim = '';
     contentTrans.innerHTML = '<span class="ph">「録音開始」を押して MTG 内容を話してください…</span>';
     contentTimer.textContent = '00:00';
     dateField.value = todayStr();
