@@ -339,7 +339,7 @@
       <h2>📋 保存された録音 <span class="badge" id="countBadge">0</span></h2>
       <div style="display:flex; gap:8px; flex-wrap: wrap;">
         <input id="searchInput" class="search" type="text" placeholder="テキスト検索…">
-        <button id="exportBtn" class="ghost">JSONエクスポート</button>
+
         <button id="clearBtn" class="ghost">全削除</button>
       </div>
     </div>
@@ -370,7 +370,6 @@
   const listEl = $('list');
   const countBadge = $('countBadge');
   const searchInput = $('searchInput');
-  const exportBtn = $('exportBtn');
   const clearBtn = $('clearBtn');
   const errorEl = $('error');
   const hintEl = $('hint');
@@ -992,19 +991,6 @@ ${text}
   });
 
   searchInput.addEventListener('input', () => { renderList(); });
-
-  exportBtn.addEventListener('click', async () => {
-    const all = await dbGetAll();
-    if (!all.length) { alert('エクスポートする項目がありません'); return; }
-    const stripped = all.map(({ audioBlob, ...rest }) => rest);
-    const blob = new Blob([JSON.stringify(stripped, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transcripts_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
 
   clearBtn.addEventListener('click', async () => {
     const all = await dbGetAll();
