@@ -190,13 +190,7 @@ details[open] > summary { margin-bottom: 14px; }
           </select>
         </div>
       </div>
-      <div>
-        <span class="set-label">Notion Apps Script URL <a href="https://github.com/coolura/voice-transcriber/blob/main/apps-script/Code.gs" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;">▶ 設定手順</a></span>
-        <div class="set-row">
-          <input id="notionUrlInput" type="password" placeholder="https://script.google.com/macros/s/..." autocomplete="off">
-        </div>
-      </div>
-      <div style="margin-top:14px;">
+      <div style="margin-top:12px;">
         <span class="set-label">📊 利用者別保存先設定（任意）</span>
         <div class="set-row">
           <input id="userSheetInput" type="text" placeholder="スプレッドシートID" style="flex:1;min-width:200px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
@@ -340,7 +334,10 @@ details[open] > summary { margin-bottom: 14px; }
   const dbClear  = () => dbRun('readwrite', s => s.clear());
 
   /* ===== localStorage ===== */
-  const LS = { KEY:'gemini_api_key', MODEL:'gemini_model', NOTION:'sheet_webapp_url', SHEET_ID:'user_sheet_id', NOTION_DBID:'user_notion_db_id', NOTION_TOKEN:'user_notion_token' };
+  // 管理者が Apps Script デプロイ時に取得した URL を設定
+  const GAS_URL = '';
+
+  const LS = { KEY:'gemini_api_key', MODEL:'gemini_model', SHEET_ID:'user_sheet_id', NOTION_DBID:'user_notion_db_id', NOTION_TOKEN:'user_notion_token' };
 
   /* ===== DOM ===== */
   const $ = id => document.getElementById(id);
@@ -351,19 +348,16 @@ details[open] > summary { margin-bottom: 14px; }
 
   /* ===== Settings ===== */
   const apiKeyInput = $('apiKeyInput'), modelSelect = $('modelSelect'),
-        notionUrlInput = $('notionUrlInput'),
         saveSettingsBtn = $('saveSettingsBtn'), testNotionBtn = $('testNotionBtn'),
         settingsFlash = $('settingsFlash'), settingsDetails = $('settingsDetails');
 
   apiKeyInput.value    = localStorage.getItem(LS.KEY)   || '';
   modelSelect.value    = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
-  notionUrlInput.value = localStorage.getItem(LS.NOTION) || '';
-  if (!apiKeyInput.value || !notionUrlInput.value) settingsDetails.open = true;
+  if (!apiKeyInput.value || !GAS_URL) settingsDetails.open = true;
 
   saveSettingsBtn.addEventListener('click', () => {
     localStorage.setItem(LS.KEY,          apiKeyInput.value.trim());
     localStorage.setItem(LS.MODEL,        modelSelect.value);
-    localStorage.setItem(LS.NOTION,       notionUrlInput.value.trim());
     localStorage.setItem(LS.SHEET_ID,     userSheetInput.value.trim());
     localStorage.setItem(LS.NOTION_DBID,  userNotionDbInput.value.trim());
     localStorage.setItem(LS.NOTION_TOKEN, userNotionTokenInput.value.trim());
@@ -733,7 +727,7 @@ ${text}
 
   /* ===== Apps Script API (Notion + Sheet) ===== */
   async function sendToApi(payload) {
-    const url = (localStorage.getItem(LS.NOTION) || '').trim();
+    const url = GAS_URL || (localStorage.getItem('sheet_webapp_url') || '').trim();
     if (!url) throw new Error('Apps Script URL が未設定です');
     const res = await fetch(url, { method:'POST', body:JSON.stringify(payload), redirect:'follow' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
