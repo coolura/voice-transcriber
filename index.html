@@ -203,11 +203,14 @@ details[open] > summary { margin-bottom: 14px; }
           <input id="csClientInput" type="text" placeholder="クライアント名" style="width:100%;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
           <div class="set-row">
             <input id="csSheetInput" type="text" placeholder="スプレッドシートID（任意）" style="flex:1;min-width:140px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+          </div>
+          <div class="set-row">
             <input id="csNotionInput" type="text" placeholder="Notion DB ID（任意）" style="flex:1;min-width:140px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+            <input id="csNotionTokenInput" type="password" placeholder="Notion トークン（任意）" style="flex:1;min-width:140px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
           </div>
           <button class="btn-ghost" id="csAddBtn" style="align-self:flex-start;">＋ 追加</button>
         </div>
-        <p class="set-note">どちらか片方だけでも OK。未設定の項目はデフォルトの保存先が使われます。<br>スプレッドシート ID = URL の「/d/」〜「/edit」の間 ／ Notion DB ID = DB URL末尾の32文字</p>
+        <p class="set-note">すべて任意。未設定の項目はデフォルトの保存先が使われます。<br>スプレッドシート ID = URL の「/d/」〜「/edit」の間<br>Notion DB ID = DB URL末尾の32文字 ／ トークン = ntn_xxx…</p>
       </div>
       <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
         <button class="btn-ghost" id="saveSettingsBtn">💾 保存</button>
@@ -394,7 +397,7 @@ details[open] > summary { margin-bottom: 14px; }
       const raw = JSON.parse(localStorage.getItem(LS.CSMAP) || '{}');
       let migrated = false;
       for (const k in raw) {
-        if (typeof raw[k] === 'string') { raw[k] = { sheetId: raw[k], notionDbId: '' }; migrated = true; }
+        if (typeof raw[k] === 'string') { raw[k] = { sheetId: raw[k], notionDbId: '', notionToken: '' }; migrated = true; }
       }
       if (migrated) localStorage.setItem(LS.CSMAP, JSON.stringify(raw));
       return raw;
@@ -403,7 +406,7 @@ details[open] > summary { margin-bottom: 14px; }
   function saveCSMap(m) { localStorage.setItem(LS.CSMAP, JSON.stringify(m)); }
   function truncId(id) { return id.length > 14 ? id.slice(0,6) + '…' + id.slice(-4) : id; }
 
-  const csListEl = $('csListEl'), csClientInput = $('csClientInput'), csSheetInput = $('csSheetInput'), csNotionInput = $('csNotionInput'), csAddBtn = $('csAddBtn');
+  const csListEl = $('csListEl'), csClientInput = $('csClientInput'), csSheetInput = $('csSheetInput'), csNotionInput = $('csNotionInput'), csNotionTokenInput = $('csNotionTokenInput'), csAddBtn = $('csAddBtn');
 
   function renderCSList() {
     const map = getCSMap();
@@ -412,8 +415,9 @@ details[open] > summary { margin-bottom: 14px; }
     csListEl.innerHTML = keys.map(k => {
       const v = map[k];
       const tags = [];
-      if (v.sheetId)   tags.push('📊 ' + truncId(v.sheetId));
+      if (v.sheetId)    tags.push('📊 ' + truncId(v.sheetId));
       if (v.notionDbId) tags.push('🗒️ ' + truncId(v.notionDbId));
+      if (v.notionToken) tags.push('🔑');
       return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);">' +
         '<span style="flex-shrink:0;font-weight:600;">' + esc(k) + '</span>' +
         '<span style="flex:1;color:var(--muted);font-size:11px;">' + tags.join('　') + '</span>' +
@@ -426,14 +430,16 @@ details[open] > summary { margin-bottom: 14px; }
     const name = csClientInput.value.trim();
     const sid  = csSheetInput.value.trim();
     const nid  = csNotionInput.value.trim();
+    const ntk  = csNotionTokenInput.value.trim();
     if (!name) { showError('クライアント名を入力してください'); return; }
-    if (!sid && !nid) { showError('スプレッドシート ID か Notion DB ID のどちらかを入力してください'); return; }
+    if (!sid && !nid && !ntk) { showError('いずれか 1 つ以上の項目を入力してください'); return; }
     const map = getCSMap();
-    map[name] = { sheetId: sid, notionDbId: nid };
+    map[name] = { sheetId: sid, notionDbId: nid, notionToken: ntk };
     saveCSMap(map);
     csClientInput.value = '';
     csSheetInput.value = '';
     csNotionInput.value = '';
+    csNotionTokenInput.value = '';
     renderCSList();
     updateCSIndicator();
   });
@@ -453,8 +459,9 @@ details[open] > summary { margin-bottom: 14px; }
     const m = getCSMap()[state.clientName];
     if (!m) { el.style.display = 'none'; return; }
     const parts = [];
-    if (m.sheetId)   parts.push('📊 専用シート');
+    if (m.sheetId)    parts.push('📊 専用シート');
     if (m.notionDbId) parts.push('🗒️ 専用Notion');
+    if (m.notionToken) parts.push('🔑 専用トークン');
     if (parts.length) { el.textContent = parts.join(' + ') + ' に保存されます'; el.style.display = 'block'; }
     else { el.style.display = 'none'; }
   }
@@ -701,7 +708,7 @@ details[open] > summary { margin-bottom: 14px; }
     } catch(err) { setSavRow('rowGemini', '⚠️', 'AI 要約スキップ: ' + err.message, true); }
 
     const clientMap = getCSMap()[state.clientName] || {};
-    const payload = { id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, createdAt:new Date().toISOString(), destinations, ...(clientMap.sheetId && { spreadsheetId: clientMap.sheetId }), ...(clientMap.notionDbId && { notionDatabaseId: clientMap.notionDbId }) };
+    const payload = { id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, createdAt:new Date().toISOString(), destinations, ...(clientMap.sheetId && { spreadsheetId: clientMap.sheetId }), ...(clientMap.notionDbId && { notionDatabaseId: clientMap.notionDbId }), ...(clientMap.notionToken && { notionToken: clientMap.notionToken }) };
 
     let sentAt = null;
     if (destinations.indexOf('notion') !== -1) setSavRow('rowNotion', '⏳', 'Notion に送信中…', false);

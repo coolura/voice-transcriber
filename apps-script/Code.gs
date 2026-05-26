@@ -63,10 +63,10 @@ function doGet() {
 function saveToNotion_(data) {
   try {
     const props = PropertiesService.getScriptProperties();
-    const token = props.getProperty('NOTION_TOKEN');
+    const token = data.notionToken || props.getProperty('NOTION_TOKEN');
     const dbId  = data.notionDatabaseId || props.getProperty('NOTION_DATABASE_ID');
     if (!token || token.startsWith('ここに')) {
-      return { ok: false, error: 'setNotionCredentials() を先に実行してください' };
+      return { ok: false, error: 'Notion トークンが未設定です' };
     }
 
     const clientName  = String(data.clientName || '').trim() || '不明';
