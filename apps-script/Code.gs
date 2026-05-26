@@ -64,7 +64,7 @@ function saveToNotion_(data) {
   try {
     const props = PropertiesService.getScriptProperties();
     const token = props.getProperty('NOTION_TOKEN');
-    const dbId  = props.getProperty('NOTION_DATABASE_ID');
+    const dbId  = data.notionDatabaseId || props.getProperty('NOTION_DATABASE_ID');
     if (!token || token.startsWith('ここに')) {
       return { ok: false, error: 'setNotionCredentials() を先に実行してください' };
     }
