@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MTG 録音メモ</title>
 <link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#38bdf8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
 <div class="container">
@@ -40,6 +45,21 @@
         </div>
         <p class="set-note">未設定の項目はデフォルトの保存先が使われます。<br>スプレッドシート ID = URL の「/d/」〜「/edit」の間 ／ Notion DB ID = DB URL末尾の32文字</p>
       </div>
+      <div style="margin-top:12px;">
+        <span class="set-label">📅 Google カレンダー連携（任意）</span>
+        <div class="set-row">
+          <input id="gcalClientId" type="text" placeholder="Google OAuth クライアントID (xxx.apps.googleusercontent.com)" style="flex:1;min-width:200px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+        </div>
+        <div class="set-row">
+          <input id="gcalEmbedUrl" type="text" placeholder="カレンダー埋め込みURL（任意）" style="flex:1;min-width:200px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+          <input id="gcalCount" type="number" min="1" max="20" value="5" style="width:70px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+        </div>
+        <p class="set-note">クライアントIDは Google Cloud Console → 認証情報 → OAuth 2.0 クライアントID（ウェブ）で取得。スコープ: calendar.readonly</p>
+      </div>
+      <div style="margin-top:12px;">
+        <span class="set-label">🤖 AI要約プロンプト（カスタマイズ可）</span>
+        <textarea id="promptInput" class="field" rows="6" style="font-size:12px;line-height:1.5;resize:vertical;min-height:100px;"></textarea>
+      </div>
       <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
         <button class="btn-ghost" id="saveSettingsBtn">💾 保存</button>
         <button class="btn-ghost" id="testNotionBtn">🔗 接続テスト</button>
@@ -74,6 +94,15 @@
       <input class="field" id="dateField" type="date">
     </div>
 
+    <!-- Agenda -->
+    <div class="field-block">
+      <div class="field-label">
+        <span>📋 アジェンダ（任意）</span>
+        <span class="hint">AIの要約精度が上がります</span>
+      </div>
+      <textarea class="field" id="agendaField" rows="2" placeholder="例：Q2進捗確認 / 次回施策の検討…" style="resize:vertical;min-height:52px;"></textarea>
+    </div>
+
     <!-- MTG Content -->
     <div class="field-block">
       <div class="field-label">
@@ -84,6 +113,17 @@
         <div class="rec-row">
           <button class="rec-btn-lg" id="contentRecBtn">🎙️ 録音開始</button>
           <button class="stop-btn" id="contentStopBtn" disabled>■ 停止</button>
+          <button class="pause-btn" id="contentPauseBtn" disabled style="display:none;">⏸ 一時停止</button>
+          <div id="volWrap" class="vol-wrap">
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+            <div class="vol-bar"></div>
+          </div>
           <div class="rec-status">
             <div class="dot" id="contentDot"></div>
             <span class="timer" id="contentTimer">00:00</span>
@@ -111,11 +151,29 @@
     </div>
   </div>
 
+  <!-- Google Calendar card (shown when client ID is set) -->
+  <div class="card" id="calCard" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;">📅 Google カレンダー</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn-ghost" id="calLoginBtn">Googleでログイン</button>
+        <button class="btn-ghost" id="calLogoutBtn" style="display:none;">ログアウト</button>
+        <button class="btn-ghost" id="calIframeToggle" style="display:none;">🗓 カレンダー表示</button>
+      </div>
+    </div>
+    <div id="calEventsList"><p style="font-size:13px;color:var(--muted);">Googleでログインすると直近の予定が表示されます。</p></div>
+    <div id="calIframeWrap" class="cal-iframe-wrap" style="display:none;"></div>
+  </div>
+
   <!-- List -->
   <div class="card">
     <div class="list-top">
       <h2>📋 録音履歴 <span class="badge" id="cntBadge">0</span></h2>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <div class="view-toggle">
+          <button class="view-btn active" id="viewAll">全件</button>
+          <button class="view-btn" id="viewClient">クライアント別</button>
+        </div>
         <input class="search" id="searchInput" type="text" placeholder="クライアント名…">
         <button class="btn-ghost" id="clearAllBtn">全削除</button>
       </div>
@@ -178,6 +236,24 @@
 
   const LS = { KEY:'gemini_api_key', MODEL:'gemini_model', SHEET_ID:'user_sheet_id', NOTION_DBID:'user_notion_db_id', NOTION_TOKEN:'user_notion_token' };
 
+  /* ===== Default prompt ===== */
+  const DEFAULT_PROMPT = `以下はMTGを音声録音・文字起こししたテキストです。日本語でMTG議事録として整理してください。
+
+## 要約
+（全体を1〜2文で簡潔に）
+
+## 主な内容・議題
+・（箇条書きで3〜5項目）
+
+## 決定事項・ネクストアクション
+・（あれば記載、なければ「特になし」）
+
+---
+文字起こし:
+"""
+\${text}
+"""`;
+
   /* ===== DOM ===== */
   const $ = id => document.getElementById(id);
   const noticeEl = $('noticeEl'), infoEl = $('infoEl');
@@ -194,12 +270,20 @@
   modelSelect.value    = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
   if (!apiKeyInput.value || !GAS_URL) settingsDetails.open = true;
 
+  const promptInput = $('promptInput');
+  promptInput.value = localStorage.getItem('gemini_prompt') || DEFAULT_PROMPT;
+
   saveSettingsBtn.addEventListener('click', () => {
     localStorage.setItem(LS.KEY,          apiKeyInput.value.trim());
     localStorage.setItem(LS.MODEL,        modelSelect.value);
     localStorage.setItem(LS.SHEET_ID,     userSheetInput.value.trim());
     localStorage.setItem(LS.NOTION_DBID,  userNotionDbInput.value.trim());
     localStorage.setItem(LS.NOTION_TOKEN, userNotionTokenInput.value.trim());
+    localStorage.setItem('gemini_prompt', promptInput.value);
+    localStorage.setItem(LS_GCAL.CLIENT_ID, gcalClientIdInput.value.trim());
+    localStorage.setItem(LS_GCAL.EMBED,      gcalEmbedUrlInput.value.trim());
+    localStorage.setItem(LS_GCAL.COUNT,      gcalCountInput.value);
+    refreshCalCard();
     settingsFlash.classList.add('show');
     setTimeout(() => settingsFlash.classList.remove('show'), 1500);
   });
@@ -240,11 +324,46 @@
     contentType:  '',
     durationSec:  0,
     isRecording:  null, // 'client' | 'content' | null
+    agenda:       '',
   };
 
   /* ===== Recording infrastructure ===== */
   let recognition = null, mediaStream = null, mediaRecorder = null, recChunks = [];
   let timerInterval = null, stopped = false;
+  let timerElapsed = 0, timerSegStart = null;
+
+  /* ===== Volume visualizer ===== */
+  let audioCtx = null, analyser = null, volAnimId = null;
+  const volBars = Array.from($('volWrap').querySelectorAll('.vol-bar'));
+
+  function startVisualizer(stream) {
+    stopVisualizer();
+    try {
+      audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+      analyser  = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      const src = audioCtx.createMediaStreamSource(stream);
+      src.connect(analyser);
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      function draw() {
+        volAnimId = requestAnimationFrame(draw);
+        analyser.getByteFrequencyData(buf);
+        const step = Math.floor(buf.length / volBars.length);
+        volBars.forEach((bar, i) => {
+          const v = buf[i * step] || 0;
+          bar.style.height = (3 + Math.round((v / 255) * 21)) + 'px';
+        });
+      }
+      draw();
+    } catch(e) { /* visualizer optional */ }
+  }
+
+  function stopVisualizer() {
+    if (volAnimId) { cancelAnimationFrame(volAnimId); volAnimId = null; }
+    if (audioCtx)  { try { audioCtx.close(); } catch(_){} audioCtx = null; }
+    analyser = null;
+    volBars.forEach(b => { b.style.height = '3px'; });
+  }
 
   function stopAll() {
     stopped = true;
@@ -252,12 +371,13 @@
     if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
     if (mediaStream)   { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    stopVisualizer();
   }
 
-  function startSpeechRec(onFinal, onInterim) {
+  function startSpeechRec(onFinal, onInterim, initAccumulated) {
     if (!SpeechRec) { showError('Web Speech API 非対応。Chrome/Edge をお使いください'); return; }
     stopped = false;
-    let accumulated = '';
+    let accumulated = initAccumulated || '';
     recognition = new SpeechRec();
     recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = true;
     recognition.onresult = e => {
@@ -282,13 +402,11 @@
   }
 
   function runTimer(el) {
-    const t0 = Date.now();
-    el.textContent = '00:00';
+    timerSegStart = Date.now();
     timerInterval = setInterval(() => {
-      const s = Math.floor((Date.now()-t0)/1000);
+      const s = timerElapsed + Math.floor((Date.now() - timerSegStart) / 1000);
       el.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
     }, 500);
-    return t0;
   }
 
   /* ===== Client Name Recording ===== */
@@ -335,13 +453,19 @@
   dateField.value = todayStr();
   dateField.addEventListener('change', () => { state.mtgDate = dateField.value || todayStr(); });
 
+  /* ===== Agenda ===== */
+  const agendaField = $('agendaField');
+  agendaField.addEventListener('input', () => { state.agenda = agendaField.value; });
+
   /* ===== Content Recording ===== */
-  const contentRecBtn  = $('contentRecBtn'),
-        contentStopBtn = $('contentStopBtn'),
-        contentDot     = $('contentDot'),
-        contentTimer   = $('contentTimer'),
-        contentText    = $('contentText');
-  let contentFinal = '', contentInterim = '', contentStartedAt = null;
+  const contentRecBtn   = $('contentRecBtn'),
+        contentStopBtn  = $('contentStopBtn'),
+        contentPauseBtn = $('contentPauseBtn'),
+        contentDot      = $('contentDot'),
+        contentTimer    = $('contentTimer'),
+        contentText     = $('contentText');
+  let contentFinal = '', contentInterim = '';
+  let isPaused = false;
 
   contentText.addEventListener('input', () => { state.contentText = contentText.value.trim(); updateSaveBtn(); });
 
@@ -351,6 +475,8 @@
     contentFinal = ''; contentInterim = ''; state.contentAudio = null; recChunks = [];
     contentText.value = '';
     contentText.readOnly = true;
+    isPaused = false;
+    timerElapsed = 0; timerSegStart = null;
 
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -364,10 +490,14 @@
 
     state.isRecording = 'content';
     contentRecBtn.disabled = true; contentStopBtn.disabled = false;
+    contentPauseBtn.disabled = false; contentPauseBtn.style.display = '';
+    contentPauseBtn.textContent = '⏸ 一時停止';
+    contentPauseBtn.classList.remove('paused');
     contentRecBtn.classList.add('recording');
     contentRecBtn.textContent = '🔴 録音中…';
     contentDot.classList.add('live');
-    contentStartedAt = runTimer(contentTimer);
+    runTimer(contentTimer);
+    startVisualizer(mediaStream);
 
     startSpeechRec(
       fin  => {
@@ -386,18 +516,81 @@
   });
 
   contentStopBtn.addEventListener('click', () => {
-    state.durationSec = Math.round((Date.now() - (contentStartedAt || Date.now())) / 1000);
+    // Accumulate time from last segment
+    if (timerSegStart) {
+      timerElapsed += Math.round((Date.now() - timerSegStart) / 1000);
+    }
+    state.durationSec = timerElapsed;
     // 確定済み + 認識中の両方を含めて保存対象にする
     state.contentText = (contentFinal + contentInterim).trim();
     contentText.value = state.contentText;
     contentText.readOnly = false;
     stopAll();
+    isPaused = false;
+    timerElapsed = 0; timerSegStart = null;
     state.isRecording = null;
     contentRecBtn.disabled = false; contentStopBtn.disabled = true;
+    contentPauseBtn.disabled = true; contentPauseBtn.style.display = 'none';
     contentRecBtn.classList.remove('recording');
     contentRecBtn.textContent = '🎙️ 録音開始';
     contentDot.classList.remove('live');
     updateSaveBtn();
+  });
+
+  contentPauseBtn.addEventListener('click', () => {
+    if (!state.isRecording || state.isRecording !== 'content') return;
+    if (!isPaused) {
+      // Pause
+      isPaused = true;
+      // Accumulate elapsed time
+      if (timerSegStart) {
+        timerElapsed += Math.floor((Date.now() - timerSegStart) / 1000);
+        timerSegStart = null;
+      }
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      // Pause media recorder
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.pause();
+      // Stop speech recognition (preserve contentFinal)
+      stopped = true;
+      if (recognition) { try { recognition.stop(); } catch(_){} recognition = null; }
+      // Stop visualizer
+      stopVisualizer();
+      contentDot.classList.remove('live');
+      contentPauseBtn.textContent = '▶ 再開';
+      contentPauseBtn.classList.add('paused');
+    } else {
+      // Resume
+      isPaused = false;
+      // Resume media recorder
+      if (mediaRecorder && mediaRecorder.state === 'paused') mediaRecorder.resume();
+      // Restart timer segment
+      timerSegStart = Date.now();
+      timerInterval = setInterval(() => {
+        const s = timerElapsed + Math.floor((Date.now() - timerSegStart) / 1000);
+        contentTimer.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+      }, 500);
+      // Restart visualizer
+      if (mediaStream) startVisualizer(mediaStream);
+      // Restart speech recognition with accumulated text preserved
+      contentDot.classList.add('live');
+      contentPauseBtn.textContent = '⏸ 一時停止';
+      contentPauseBtn.classList.remove('paused');
+      startSpeechRec(
+        fin  => {
+          contentFinal = fin;
+          contentText.value = fin + contentInterim;
+          state.contentText = (fin + contentInterim).trim();
+          updateSaveBtn();
+        },
+        intr => {
+          contentInterim = intr;
+          contentText.value = contentFinal + intr;
+          const v = (contentFinal + intr).trim();
+          if (v) { state.contentText = v; updateSaveBtn(); }
+        },
+        contentFinal  // pass accumulated as init
+      );
+    }
   });
 
   /* ===== Save Button + Destination ===== */
@@ -520,6 +713,7 @@
     state.contentText = '';
     state.contentAudio = null;
     state.durationSec  = 0;
+    state.agenda = '';
     clientField.value = '';
     clientField.placeholder = '例：山田商事';
     clientFinal = '';
@@ -529,6 +723,7 @@
     contentText.readOnly = false;
     contentTimer.textContent = '00:00';
     dateField.value = todayStr();
+    agendaField.value = '';
     saveBtn.disabled = true;
   }
 
@@ -537,22 +732,17 @@
     const key   = (localStorage.getItem(LS.KEY) || '').trim();
     const model = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
     if (!key) throw new Error('Gemini API キーが未設定です');
-    const prompt = `以下はMTGを音声録音・文字起こししたテキストです。日本語でMTG議事録として整理してください。
 
-## 要約
-（全体を1〜2文で簡潔に）
+    const savedPromptTemplate = (localStorage.getItem('gemini_prompt') || '').trim() || DEFAULT_PROMPT;
+    // Replace ${text} placeholder in the prompt template
+    let prompt = savedPromptTemplate.replace('${text}', text);
 
-## 主な内容・議題
-・（箇条書きで3〜5項目）
+    // Prepend agenda if present
+    const agenda = (state.agenda || agendaField.value || '').trim();
+    if (agenda) {
+      prompt = `【MTGのアジェンダ】\n${agenda}\n\n` + prompt;
+    }
 
-## 決定事項・ネクストアクション
-・（あれば記載、なければ「特になし」）
-
----
-文字起こし:
-"""
-${text}
-"""`;
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.2, maxOutputTokens:1024} }),
@@ -583,9 +773,51 @@ ${text}
     return json;
   }
 
+  /* ===== View mode ===== */
+  let viewMode = 'all';
+  $('viewAll').addEventListener('click', () => {
+    viewMode = 'all';
+    $('viewAll').classList.add('active');
+    $('viewClient').classList.remove('active');
+    renderList();
+  });
+  $('viewClient').addEventListener('click', () => {
+    viewMode = 'client';
+    $('viewClient').classList.add('active');
+    $('viewAll').classList.remove('active');
+    renderList();
+  });
+
   /* ===== List ===== */
   const audioCache = new Map();
   function revokeAll() { audioCache.forEach(u => URL.revokeObjectURL(u)); audioCache.clear(); }
+
+  function buildCard(e) {
+    let audioHtml = '';
+    if (e.audioBlob?.size > 0) {
+      const u = URL.createObjectURL(e.audioBlob);
+      audioCache.set(e.id, u);
+      audioHtml = `<audio class="mtg-audio" controls src="${u}"></audio>`;
+    }
+    return `
+      <div class="mtg-card">
+        <div class="mtg-client">👤 ${esc(e.clientName||'（名前なし）')}</div>
+        <div class="mtg-date">📅 ${esc(e.mtgDate ? fmtDate(e.mtgDate) : fmtDt(e.createdAt))}</div>
+        <div class="mtg-meta">
+          <span>⏱ ${fmtDur(e.durationSec||0)}</span>
+          <span>📝 ${(e.text||'').length}文字</span>
+        </div>
+        ${e.summary ? `<div class="mtg-summary">${esc(e.summary)}</div>` : ''}
+        ${e.sentAt  ? `<div class="mtg-sent">🗒️ Notion 送信済 (${new Date(e.sentAt).toLocaleString('ja-JP')})</div>` : ''}
+        ${audioHtml}
+        <div class="mtg-actions">
+          <button class="btn-ghost" data-act="send" data-id="${e.id}">${e.sentAt?'再送信':'Notion 送信'}</button>
+          <button class="btn-ghost" data-act="copy" data-id="${e.id}">コピー</button>
+          <button class="btn-ghost" data-act="print" data-id="${e.id}">印刷/PDF</button>
+          <button class="btn-ghost" data-act="del"  data-id="${e.id}">削除</button>
+        </div>
+      </div>`;
+  }
 
   async function renderList() {
     revokeAll();
@@ -595,31 +827,24 @@ ${text}
     $('cntBadge').textContent = all.length;
     const rows = q ? all.filter(e => (e.clientName||'').toLowerCase().includes(q) || (e.text||'').toLowerCase().includes(q)) : all;
     if (!rows.length) { $('listEl').innerHTML = `<div class="empty">${all.length?'一致する項目はありません':'まだ録音はありません'}</div>`; return; }
-    $('listEl').innerHTML = rows.map(e => {
-      let audioHtml = '';
-      if (e.audioBlob?.size > 0) {
-        const u = URL.createObjectURL(e.audioBlob);
-        audioCache.set(e.id, u);
-        audioHtml = `<audio class="mtg-audio" controls src="${u}"></audio>`;
-      }
-      return `
-        <div class="mtg-card">
-          <div class="mtg-client">👤 ${esc(e.clientName||'（名前なし）')}</div>
-          <div class="mtg-date">📅 ${esc(e.mtgDate ? fmtDate(e.mtgDate) : fmtDt(e.createdAt))}</div>
-          <div class="mtg-meta">
-            <span>⏱ ${fmtDur(e.durationSec||0)}</span>
-            <span>📝 ${(e.text||'').length}文字</span>
-          </div>
-          ${e.summary ? `<div class="mtg-summary">${esc(e.summary)}</div>` : ''}
-          ${e.sentAt  ? `<div class="mtg-sent">🗒️ Notion 送信済 (${new Date(e.sentAt).toLocaleString('ja-JP')})</div>` : ''}
-          ${audioHtml}
-          <div class="mtg-actions">
-            <button class="btn-ghost" data-act="send" data-id="${e.id}">${e.sentAt?'再送信':'Notion 送信'}</button>
-            <button class="btn-ghost" data-act="copy" data-id="${e.id}">コピー</button>
-            <button class="btn-ghost" data-act="del"  data-id="${e.id}">削除</button>
-          </div>
-        </div>`;
-    }).join('');
+
+    if (viewMode === 'client') {
+      // Group by clientName
+      const groups = new Map();
+      rows.forEach(e => {
+        const name = e.clientName || '（名前なし）';
+        if (!groups.has(name)) groups.set(name, []);
+        groups.get(name).push(e);
+      });
+      let html = '';
+      groups.forEach((entries, name) => {
+        html += `<div class="client-group-header">👤 ${esc(name)} (${entries.length}件)</div>`;
+        html += entries.map(e => buildCard(e)).join('');
+      });
+      $('listEl').innerHTML = html;
+    } else {
+      $('listEl').innerHTML = rows.map(e => buildCard(e)).join('');
+    }
   }
 
   $('listEl').addEventListener('click', async ev => {
@@ -642,8 +867,41 @@ ${text}
         await sendToNotion({ id:entry.id, clientName:entry.clientName||'', mtgDate:entry.mtgDate||'', text:entry.text||'', summary:entry.summary||'', durationSec:entry.durationSec||0, createdAt:entry.createdAt });
         entry.sentAt = new Date().toISOString(); await dbPut(entry); await renderList();
       } catch(err) { showError('Notion 送信失敗: ' + err.message); btn.disabled = false; btn.textContent = 'Notion 送信'; }
+    } else if (act === 'print') {
+      const clientName = entry.clientName || '（名前なし）';
+      const dateStr    = entry.mtgDate ? fmtDate(entry.mtgDate) : fmtDt(entry.createdAt);
+      const win = window.open('', '_blank');
+      if (!win) { showError('ポップアップがブロックされました。ポップアップを許可してください。'); return; }
+      win.document.write(`<!DOCTYPE html><html lang="ja"><head>
+<meta charset="UTF-8">
+<title>${escHtml(clientName)} - ${escHtml(dateStr)}</title>
+<style>
+  body { background: #fff; color: #111; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 24px; max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .meta { font-size: 13px; color: #555; margin-bottom: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+  h2 { font-size: 16px; margin: 20px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  pre { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 14px; line-height: 1.6; background: #f5f5f5; padding: 12px; border-radius: 6px; }
+  @media print { body { padding: 8px; } }
+</style>
+</head><body>
+<h1>${escHtml(clientName)}</h1>
+<div class="meta">
+  <span>📅 ${escHtml(dateStr)}</span>
+  <span>⏱ ${escHtml(fmtDur(entry.durationSec||0))}</span>
+  <span>📝 ${(entry.text||'').length}文字</span>
+</div>
+${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
+<h2>全文テキスト</h2>
+<pre>${escHtml(entry.text||'')}</pre>
+</body></html>`);
+      win.document.close();
+      win.print();
     }
   });
+
+  function escHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
 
   $('searchInput').addEventListener('input', renderList);
   $('clearAllBtn').addEventListener('click', async () => {
@@ -670,6 +928,110 @@ ${text}
   function esc(s) {
     return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+
+  /* ===== Google Calendar ===== */
+  const LS_GCAL = { CLIENT_ID:'gcal_client_id', EMBED:'gcal_embed_url', COUNT:'gcal_count' };
+  const gcalClientIdInput = $('gcalClientId');
+  const gcalEmbedUrlInput = $('gcalEmbedUrl');
+  const gcalCountInput    = $('gcalCount');
+  gcalClientIdInput.value = localStorage.getItem(LS_GCAL.CLIENT_ID) || '';
+  gcalEmbedUrlInput.value = localStorage.getItem(LS_GCAL.EMBED) || '';
+  gcalCountInput.value    = localStorage.getItem(LS_GCAL.COUNT) || '5';
+
+  function refreshCalCard() {
+    const cid = (localStorage.getItem(LS_GCAL.CLIENT_ID) || '').trim();
+    $('calCard').style.display = cid ? 'block' : 'none';
+  }
+  refreshCalCard();
+
+  let calTokenClient = null, calAccessToken = null;
+  const calLoginBtn     = $('calLoginBtn');
+  const calLogoutBtn    = $('calLogoutBtn');
+  const calIframeToggle = $('calIframeToggle');
+  const calEventsList   = $('calEventsList');
+  const calIframeWrap   = $('calIframeWrap');
+
+  function initCalTokenClient() {
+    const cid = (localStorage.getItem(LS_GCAL.CLIENT_ID) || '').trim();
+    if (!cid || !window.google?.accounts?.oauth2) return;
+    calTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: cid,
+      scope: 'https://www.googleapis.com/auth/calendar.readonly',
+      callback: async resp => {
+        if (resp.error) { showError('カレンダー認証失敗: ' + resp.error); return; }
+        calAccessToken = resp.access_token;
+        calLoginBtn.style.display = 'none';
+        calLogoutBtn.style.display = '';
+        calIframeToggle.style.display = '';
+        await fetchCalEvents();
+      }
+    });
+  }
+  window.addEventListener('load', () => { setTimeout(initCalTokenClient, 500); });
+
+  calLoginBtn.addEventListener('click', () => {
+    initCalTokenClient();
+    if (!calTokenClient) { showError('Google クライアントIDが設定されていません。設定を確認してください。'); return; }
+    calTokenClient.requestAccessToken();
+  });
+
+  calLogoutBtn.addEventListener('click', () => {
+    if (calAccessToken) google.accounts.oauth2.revoke(calAccessToken, () => {});
+    calAccessToken = null;
+    calLoginBtn.style.display = '';
+    calLogoutBtn.style.display = 'none';
+    calIframeToggle.style.display = 'none';
+    calEventsList.innerHTML = '<p style="font-size:13px;color:var(--muted);">Googleでログインすると直近の予定が表示されます。</p>';
+    calIframeWrap.style.display = 'none';
+    calIframeWrap.innerHTML = '';
+  });
+
+  let iframeShowing = false;
+  calIframeToggle.addEventListener('click', () => {
+    const embedUrl = (localStorage.getItem(LS_GCAL.EMBED) || '').trim();
+    if (!embedUrl) { showError('設定にカレンダー埋め込みURLを入力してください。'); return; }
+    iframeShowing = !iframeShowing;
+    calIframeToggle.textContent = iframeShowing ? '🗓 カレンダーを隠す' : '🗓 カレンダー表示';
+    if (iframeShowing) {
+      calIframeWrap.style.display = 'block';
+      calIframeWrap.innerHTML = `<iframe src="${esc(embedUrl)}" frameborder="0" scrolling="no" style="border:0;width:100%;height:400px;border-radius:8px;"></iframe>`;
+    } else {
+      calIframeWrap.style.display = 'none';
+      calIframeWrap.innerHTML = '';
+    }
+  });
+
+  async function fetchCalEvents() {
+    if (!calAccessToken) return;
+    const count = parseInt(localStorage.getItem(LS_GCAL.COUNT) || '5');
+    calEventsList.innerHTML = '<p style="font-size:13px;color:var(--muted);">読み込み中…</p>';
+    try {
+      const now = new Date().toISOString();
+      const res = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(now)}&maxResults=${count}`,
+        { headers: { Authorization: `Bearer ${calAccessToken}` } }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const items = data.items || [];
+      if (!items.length) { calEventsList.innerHTML = '<p style="font-size:13px;color:var(--muted);">直近の予定はありません。</p>'; return; }
+      calEventsList.innerHTML = '<div class="cal-events">' + items.map(ev => {
+        const start = ev.start?.dateTime || ev.start?.date || '';
+        const isAllDay = !ev.start?.dateTime;
+        const timeStr = isAllDay ? fmtDate(start) : new Date(start).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        const loc = ev.location ? `<div class="cal-event-loc">📍 ${esc(ev.location)}</div>` : '';
+        return `<div class="cal-event">
+          <div class="cal-event-title">${esc(ev.summary || '（無題）')}</div>
+          <div class="cal-event-time">🕐 ${timeStr}</div>${loc}
+        </div>`;
+      }).join('') + '</div>';
+    } catch(err) {
+      calEventsList.innerHTML = `<p style="font-size:13px;color:var(--danger);">取得失敗: ${err.message}</p>`;
+    }
+  }
+
+  /* ===== PWA Service Worker ===== */
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
   renderList();
 })();
