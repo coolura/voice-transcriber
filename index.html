@@ -193,7 +193,11 @@
         <button class="btn-ghost" id="calIframeToggle" style="display:none;">🗓 カレンダー表示</button>
       </div>
     </div>
-    <div id="calEventsList"><p style="font-size:13px;color:var(--muted);">Googleでログインすると直近の予定が表示されます。</p></div>
+    <div class="cal-day-toggle" id="calDayToggle" style="display:none;">
+      <button class="view-btn active" id="calTodayBtn">本日</button>
+      <button class="view-btn" id="calTomorrowBtn">翌日</button>
+    </div>
+    <div id="calEventsList"><p style="font-size:13px;color:var(--muted);">Googleでログインすると本日・翌日の予定を選択して表示できます。</p></div>
     <div id="calIframeWrap" class="cal-iframe-wrap" style="display:none;"></div>
   </div>
 
@@ -1014,8 +1018,12 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
   const calLoginBtn     = $('calLoginBtn');
   const calLogoutBtn    = $('calLogoutBtn');
   const calIframeToggle = $('calIframeToggle');
+  const calTodayBtn     = $('calTodayBtn');
+  const calTomorrowBtn  = $('calTomorrowBtn');
+  const calDayToggle    = $('calDayToggle');
   const calEventsList   = $('calEventsList');
   const calIframeWrap   = $('calIframeWrap');
+  let calDayMode = 'today';
 
   function initCalTokenClient() {
     const cid = (currentSettings?.gcalClientId || '').trim();
@@ -1029,6 +1037,7 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
         calLoginBtn.style.display = 'none';
         calLogoutBtn.style.display = '';
         calIframeToggle.style.display = '';
+        calDayToggle.style.display = 'flex';
         await fetchCalEvents();
       }
     });
@@ -1047,10 +1056,28 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
     calLoginBtn.style.display = '';
     calLogoutBtn.style.display = 'none';
     calIframeToggle.style.display = 'none';
-    calEventsList.innerHTML = '<p style="font-size:13px;color:var(--muted);">Googleでログインすると直近の予定が表示されます。</p>';
+    calDayToggle.style.display = 'none';
+    calEventsList.innerHTML = '<p style="font-size:13px;color:var(--muted);">Googleでログインすると本日・翌日の予定を選択して表示できます。</p>';
     calIframeWrap.style.display = 'none';
     calIframeWrap.innerHTML = '';
   });
+
+  calTodayBtn.addEventListener('click', async () => {
+    calDayMode = 'today';
+    updateCalDayButtons();
+    await fetchCalEvents();
+  });
+
+  calTomorrowBtn.addEventListener('click', async () => {
+    calDayMode = 'tomorrow';
+    updateCalDayButtons();
+    await fetchCalEvents();
+  });
+
+  function updateCalDayButtons() {
+    calTodayBtn.classList.toggle('active', calDayMode === 'today');
+    calTomorrowBtn.classList.toggle('active', calDayMode === 'tomorrow');
+  }
 
   let iframeShowing = false;
   calIframeToggle.addEventListener('click', () => {
@@ -1070,17 +1097,17 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
   async function fetchCalEvents() {
     if (!calAccessToken) return;
     const count = parseInt(currentSettings?.gcalCount || '5');
-    calEventsList.innerHTML = '<p style="font-size:13px;color:var(--muted);">読み込み中…</p>';
+    const range = getCalDayRange(calDayMode);
+    calEventsList.innerHTML = `<p style="font-size:13px;color:var(--muted);">${range.label}の予定を読み込み中…</p>`;
     try {
-      const now = new Date().toISOString();
       const res = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(now)}&maxResults=${count}`,
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(range.start.toISOString())}&timeMax=${encodeURIComponent(range.end.toISOString())}&maxResults=${count}`,
         { headers: { Authorization: `Bearer ${calAccessToken}` } }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const items = data.items || [];
-      if (!items.length) { calEventsList.innerHTML = '<p style="font-size:13px;color:var(--muted);">直近の予定はありません。</p>'; return; }
+      if (!items.length) { calEventsList.innerHTML = `<p style="font-size:13px;color:var(--muted);">${range.label}の予定はありません。</p>`; return; }
       calEventsList.innerHTML = '<div class="cal-events">' + items.map(ev => {
         const start = ev.start?.dateTime || ev.start?.date || '';
         const isAllDay = !ev.start?.dateTime;
@@ -1094,6 +1121,15 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
     } catch(err) {
       calEventsList.innerHTML = `<p style="font-size:13px;color:var(--danger);">取得失敗: ${err.message}</p>`;
     }
+  }
+
+  function getCalDayRange(mode) {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    if (mode === 'tomorrow') start.setDate(start.getDate() + 1);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start, end, label: mode === 'tomorrow' ? '翌日' : '本日' };
   }
 
   /* ===== PWA Service Worker ===== */
