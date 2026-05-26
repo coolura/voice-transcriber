@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MTG 録音メモ - セットアップガイド</title>
+<style>
+:root { --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --muted: #94a3b8; --accent: #38bdf8; --border: #334155; --success: #22c55e; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px 16px 60px; line-height: 1.7; }
+.container { max-width: 680px; margin: 0 auto; }
+h1 { font-size: 22px; margin-bottom: 4px; }
+.subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+h2 { font-size: 18px; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 15px; margin: 20px 0 8px; color: var(--accent); }
+p { margin: 8px 0; font-size: 15px; }
+ul, ol { margin: 8px 0 8px 24px; font-size: 15px; }
+li { margin: 4px 0; }
+code { background: rgba(56,189,248,.12); color: var(--accent); padding: 2px 6px; border-radius: 4px; font-size: 13px; word-break: break-all; }
+a { color: var(--accent); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin: 14px 0; }
+.note { background: rgba(56,189,248,.08); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 4px; font-size: 13px; color: #bae6fd; margin: 12px 0; }
+.warn { background: rgba(239,68,68,.08); border-left: 3px solid #ef4444; padding: 10px 14px; border-radius: 4px; font-size: 13px; color: #fecaca; margin: 12px 0; }
+.back { display: inline-block; margin-bottom: 16px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<a class="back" href="./">← アプリに戻る</a>
+<h1>MTG 録音メモ - セットアップガイド</h1>
+<p class="subtitle">初回設定の手順です。5〜10 分で完了します。</p>
+
+<div class="card">
+  <h3>このアプリでできること</h3>
+  <ul>
+    <li>ブラウザだけで MTG を録音・文字起こし</li>
+    <li>AI（Gemini）が自動で議事録を要約</li>
+    <li>Google スプレッドシート / Notion に自動保存</li>
+  </ul>
+  <p style="font-size:13px;color:var(--muted);margin-top:8px;">アプリのインストールは不要です。Chrome または Edge でアクセスするだけで使えます。</p>
+</div>
+
+<h2>1. Gemini API キーの取得</h2>
+<p>AI 要約に使う Gemini API のキーを取得します。</p>
+<ol>
+  <li><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a> を開く</li>
+  <li>Google アカウントでログイン</li>
+  <li>「API キーを作成」をクリック</li>
+  <li>表示された <code>AIza...</code> で始まるキーをコピー</li>
+</ol>
+<div class="note">無料枠で十分です。個人利用で課金される心配はありません。</div>
+<div class="warn">API キーはパスワードと同じです。他人に教えないでください。紛失した場合は再発行できます。</div>
+
+<h2>2. スプレッドシートの準備</h2>
+<p>MTG 記録の保存先となるスプレッドシートを用意します。</p>
+<ol>
+  <li><a href="https://sheets.new" target="_blank" rel="noopener">新しいスプレッドシート</a> を作成（名前は任意）</li>
+  <li>ブラウザ上部の URL を確認</li>
+  <li><code>/d/</code> と <code>/edit</code> の間にある長い文字列をコピー</li>
+</ol>
+<p>URL の例:</p>
+<p><code>https://docs.google.com/spreadsheets/d/1abcDEFghiJKLMnopQRstuVWxyz/edit#gid=0</code></p>
+<p>この場合、スプレッドシート ID は <code>1abcDEFghiJKLMnopQRstuVWxyz</code> です。</p>
+<div class="note">シート名やヘッダーは自動作成されます。スプレッドシートの中身を編集する必要はありません。</div>
+
+<h2>3. Notion の設定（Notion に保存する場合）</h2>
+<p>Notion に保存しない場合はスキップできます。</p>
+
+<h3>3-1. Notion トークンの取得</h3>
+<ol>
+  <li><a href="https://www.notion.so/my-integrations" target="_blank" rel="noopener">Notion インテグレーション</a> を開く</li>
+  <li>「新しいインテグレーション」をクリック</li>
+  <li>名前を入力し、ワークスペースを選択して作成</li>
+  <li>作成後の画面で「内部インテグレーションシークレット」をコピー</li>
+</ol>
+<p>コピーした <code>ntn_...</code> で始まる文字列が Notion トークンです。</p>
+<div class="warn">トークンはパスワードと同じ扱いです。他人に教えないでください。</div>
+
+<h3>3-2. Notion DB ID の取得</h3>
+<ol>
+  <li>Notion で保存先にするデータベースを開く</li>
+  <li>右上の「…」→「接続」から、作成したインテグレーションを追加</li>
+  <li>データベースの URL をコピー</li>
+  <li>URL 末尾の 32 文字の英数字が DB ID です</li>
+</ol>
+<p>URL の例:</p>
+<p><code>https://www.notion.so/example/36b1e4c4319e80c3bb45f8e6251a16f9?v=xxx</code></p>
+<p>この場合、DB ID は <code>36b1e4c4319e80c3bb45f8e6251a16f9</code> です。</p>
+<div class="note">データベースにはタイトル型のプロパティ「名前」を用意してください。</div>
+
+<h2>4. アプリに設定を入力</h2>
+<ol>
+  <li><a href="./">MTG 録音メモ</a> を開く</li>
+  <li>「⚙️ 設定」を開く</li>
+  <li>以下を入力:
+    <ul>
+      <li><strong>Gemini API キー</strong> — ステップ 1 で取得したキー</li>
+      <li><strong>スプレッドシート ID</strong> — ステップ 2 で取得した ID</li>
+      <li><strong>Notion DB ID</strong> — ステップ 3-2 で取得した ID（任意）</li>
+      <li><strong>Notion トークン</strong> — ステップ 3-1 で取得したトークン（任意）</li>
+    </ul>
+  </li>
+  <li>「💾 保存」をクリック</li>
+  <li>「🔗 接続テスト」を押して、保存先にテストデータが追加されることを確認</li>
+</ol>
+
+<h2>5. 使い方</h2>
+<div class="card">
+  <ol>
+    <li><strong>クライアント名</strong>を入力（話すか直接入力）</li>
+    <li><strong>MTG 日</strong>を選択（デフォルトは今日）</li>
+    <li><strong>「🎙️ 録音開始」</strong>→ MTG を話す → <strong>「■ 停止」</strong></li>
+    <li><strong>「✨ AI要約 & 保存」</strong>を押す</li>
+  </ol>
+</div>
+
+<h2>よくある質問</h2>
+<h3>マイクが使えないと言われる</h3>
+<p>ブラウザのマイク権限を許可してください。Chrome の場合、アドレスバー左のアイコン → 「マイク」→「許可」です。</p>
+
+<h3>何回まで使える？</h3>
+<p>Gemini 無料枠は 1 日 1,500 リクエスト程度です。個人利用なら十分です。</p>
+
+<h3>データはどこに保存される？</h3>
+<p>音声データはブラウザ内のみ。テキストと要約は設定した保存先（スプレッドシート / Notion）に送信されます。</p>
+
+<h3>コストは？</h3>
+<p>基本無料です（Gemini API 無料枠 + Notion 無料プラン + Google Apps Script 無料枠）。</p>
+
+<h3>スマホのホーム画面に追加したい</h3>
+<p><strong>iPhone:</strong> Safari でアプリを開く → 共有ボタン → 「ホーム画面に追加」<br>
+<strong>Android:</strong> Chrome でアプリを開く → メニュー → 「ホーム画面に追加」</p>
+
+<div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);">
+  設定値はすべてお使いのブラウザにのみ保存されます。外部に送信されるのは AI 要約時と保存先への送信時のみです。
+</div>
+
+</div>
+</body>
+</html>
