@@ -30,8 +30,12 @@
       <div class="field-label"><span>パスワード</span></div>
       <input class="field" id="loginPassword" type="password" placeholder="パスワード" autocomplete="current-password">
     </div>
+    <label class="remember-row">
+      <input type="checkbox" id="rememberLogin" checked>
+      <span>この端末でログイン状態を保持する</span>
+    </label>
     <button class="save-btn" id="loginBtn">ログイン</button>
-    <p class="set-note" style="margin-top:10px;">設定内容はログイン中の利用者に紐づいて保存されます。</p>
+    <p class="set-note" style="margin-top:10px;">共有端末ではチェックを外すか、利用後にログアウトしてください。ID・パスワード自体は保存しません。</p>
   </div>
 
   <div class="card app-only" id="accountCard" style="display:none;">
@@ -246,8 +250,8 @@
   // 管理者が Apps Script デプロイ時に取得した URL を設定
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbx7Em2KX4zfnWkDanHKQx1Ic90cyglTOywZYVGb8dFYvNm-Kp0gqhj4RDMfG6HxRE-y/exec';
 
-  const AUTH_LS = { TOKEN:'mtg_auth_token', USER_ID:'mtg_auth_user_id' };
-  let authToken = sessionStorage.getItem(AUTH_LS.TOKEN) || '';
+  const AUTH_LS = { TOKEN:'mtg_auth_token', USER_ID:'mtg_auth_user_id', REMEMBER:'mtg_auth_remember' };
+  let authToken = localStorage.getItem(AUTH_LS.TOKEN) || sessionStorage.getItem(AUTH_LS.TOKEN) || '';
   let currentUser = null;
   let currentSettings = null;
 
@@ -279,7 +283,8 @@
   /* ===== Auth ===== */
   const loginCard = $('loginCard'), loginUserId = $('loginUserId'), loginPassword = $('loginPassword'),
         loginBtn = $('loginBtn'), accountCard = $('accountCard'), accountStatus = $('accountStatus'),
-        logoutBtn = $('logoutBtn'), destinationLinks = $('destinationLinks');
+        logoutBtn = $('logoutBtn'), destinationLinks = $('destinationLinks'), rememberLogin = $('rememberLogin');
+  rememberLogin.checked = localStorage.getItem(AUTH_LS.REMEMBER) !== 'false';
 
   function setAppVisible(visible, showLogin) {
     document.querySelectorAll('.app-only').forEach(el => { el.style.display = visible ? '' : 'none'; });
@@ -307,8 +312,7 @@
     try {
       const json = await callApi('login', { userId:loginUserId.value.trim(), password:loginPassword.value });
       authToken = json.token;
-      sessionStorage.setItem(AUTH_LS.TOKEN, authToken);
-      sessionStorage.setItem(AUTH_LS.USER_ID, json.user?.userId || loginUserId.value.trim());
+      persistAuth(json.user?.userId || loginUserId.value.trim());
       loginPassword.value = '';
       applySession(json.user, json.settings);
     } catch (err) {
@@ -330,8 +334,20 @@
     currentSettings = null;
     sessionStorage.removeItem(AUTH_LS.TOKEN);
     sessionStorage.removeItem(AUTH_LS.USER_ID);
+    localStorage.removeItem(AUTH_LS.TOKEN);
+    localStorage.removeItem(AUTH_LS.USER_ID);
     setAppVisible(false);
     if (showMessage) showInfo('ログアウトしました。');
+  }
+
+  function persistAuth(userId) {
+    const storage = rememberLogin.checked ? localStorage : sessionStorage;
+    const otherStorage = rememberLogin.checked ? sessionStorage : localStorage;
+    storage.setItem(AUTH_LS.TOKEN, authToken);
+    storage.setItem(AUTH_LS.USER_ID, userId);
+    localStorage.setItem(AUTH_LS.REMEMBER, rememberLogin.checked ? 'true' : 'false');
+    otherStorage.removeItem(AUTH_LS.TOKEN);
+    otherStorage.removeItem(AUTH_LS.USER_ID);
   }
 
   function applySession(user, settings) {
