@@ -20,7 +20,7 @@
   <div id="infoEl"   class="info"   style="display:none;"></div>
 
   <!-- Login -->
-  <div class="card" id="loginCard">
+  <div class="card" id="loginCard" style="display:none;">
     <h2>🔐 利用者ログイン</h2>
     <div class="field-block">
       <div class="field-label"><span>利用者ID</span></div>
@@ -281,9 +281,9 @@
         loginBtn = $('loginBtn'), accountCard = $('accountCard'), accountStatus = $('accountStatus'),
         logoutBtn = $('logoutBtn'), destinationLinks = $('destinationLinks');
 
-  function setAppVisible(visible) {
+  function setAppVisible(visible, showLogin) {
     document.querySelectorAll('.app-only').forEach(el => { el.style.display = visible ? '' : 'none'; });
-    loginCard.style.display = visible ? 'none' : 'block';
+    loginCard.style.display = visible ? 'none' : (showLogin === false ? 'none' : 'block');
     if (visible) refreshCalCard();
   }
 
@@ -335,6 +335,10 @@
   }
 
   function applySession(user, settings) {
+    hideNotice();
+    infoEl.style.display = 'none';
+    loginUserId.value = '';
+    loginPassword.value = '';
     currentUser = user || {};
     currentSettings = settings || {};
     accountStatus.textContent = `${currentUser.displayName || currentUser.userId || '利用者'} としてログインしています`;
@@ -1136,14 +1140,17 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
   async function restoreSession() {
-    setAppVisible(false);
-    if (!authToken) return;
+    setAppVisible(false, false);
+    if (!authToken) {
+      setAppVisible(false);
+      return;
+    }
     try {
       const json = await callApi('getSettings');
       applySession(json.user, json.settings);
     } catch (err) {
-      showError('セッション確認に失敗しました。ログインし直してください。');
       logout(false);
+      showError('セッション確認に失敗しました。ログインし直してください。');
     }
   }
 
