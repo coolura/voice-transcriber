@@ -30,22 +30,9 @@ https://coolura.github.io/voice-transcriber/
 
 スプレッドシート ID / Notion DB ID / Notion トークンが未入力の場合は、保存用 URL 側に設定されているデフォルトの保存先が使われます。
 
-### Notion Apps Script URL（保存用 URL）の取得方法
-1. [Google Apps Script](https://script.google.com/home) を開く
-2. 「新しいプロジェクト」を作成
-3. [`apps-script/Code.gs`](apps-script/Code.gs) の内容を全部コピーして、Apps Script の `Code.gs` に貼り付け
-4. 上部の保存アイコン、または `Ctrl + S` で保存
-5. 右上の「デプロイ」→「新しいデプロイ」をクリック
-6. 種類の選択で **ウェブアプリ** を選ぶ
-7. 次の設定にする
-   - 次のユーザーとして実行: **自分**
-   - アクセスできるユーザー: **全員**
-8. 「デプロイ」をクリック
-9. 初回は Google アカウントの権限確認が出るため、画面の案内に従って許可
-10. 表示された **ウェブアプリ URL** をコピー
-11. アプリ画面の **Notion Apps Script URL（保存用 URL）** 欄に貼り付けて「保存」
-
-Apps Script のコードを変更した場合は、「デプロイを管理」→ 対象デプロイの編集 →「新バージョン」→「デプロイ」で最新版を反映します。URL は通常そのまま使えます。
+### Notion Apps Script URL（保存用 URL）について
+この URL は管理者から提供されます。利用者が自分で作成する必要はありません。
+受け取った URL をアプリ画面の **Notion Apps Script URL（保存用 URL）** 欄に貼り付けて「保存」してください。
 
 ### スプレッドシート ID の取得方法
 1. [新しいスプレッドシート](https://sheets.new) を作成、または保存先にしたい既存のスプレッドシートを開く
@@ -99,3 +86,26 @@ URL の例:
 - データはすべてブラウザのローカル (IndexedDB / localStorage) に保存されます。
 - 外部送信は (1) Gemini API への要約リクエスト、(2) 指定した Apps Script Web App への送信、(3) Apps Script から Notion API / Google スプレッドシートへの保存、のみです。
 - API キー、保存用 URL、スプレッドシート ID、Notion DB ID、Notion トークンは利用者ご自身のブラウザに保存されます。
+
+---
+
+## 管理者向け: Apps Script のセットアップ
+
+利用者に **Notion Apps Script URL（保存用 URL）** を提供するための手順です。利用者側の操作ではありません。
+
+1. [Google Apps Script](https://script.google.com/home) を開く
+2. 「新しいプロジェクト」を作成
+3. [`apps-script/Code.gs`](apps-script/Code.gs) の内容を全部コピーして、Apps Script の `Code.gs` に貼り付け
+4. 上部の保存アイコン、または `Ctrl + S` で保存
+5. 右上の「デプロイ」→「新しいデプロイ」をクリック
+6. 種類の選択で **ウェブアプリ** を選ぶ
+7. 次の設定にする
+   - 次のユーザーとして実行: **自分**
+   - アクセスできるユーザー: **全員**
+8. 「デプロイ」をクリック
+9. 初回は Google アカウントの権限確認が出るため、画面の案内に従って許可
+10. 表示された **ウェブアプリ URL** を利用者に共有
+
+コードを更新した場合は、「デプロイを管理」→ 対象デプロイの編集 →「新バージョン」→「デプロイ」で最新版を反映します。URL はそのまま使えます。
+
+利用者ごとのスプレッドシート・Notion 保存先はブラウザの設定画面で利用者自身が入力するため、Apps Script のコード編集は不要です。
