@@ -19,6 +19,7 @@
     <li>ブラウザだけで MTG を録音・文字起こし</li>
     <li>AI（Gemini）が自動で議事録を要約</li>
     <li>Google スプレッドシート / Notion に自動保存</li>
+    <li>ログインすれば別の端末でも同じ設定を利用</li>
   </ul>
   <p style="font-size:13px;color:var(--muted);margin-top:8px;">アプリのインストールは不要です。Chrome または Edge でアクセスするだけで使えます。</p>
 </div>
@@ -145,12 +146,14 @@
   <li><strong>ログインしても予定が出ない</strong> → Google Calendar API が有効になっているか Cloud Console で確認</li>
 </ul>
 
-<h2>5. アプリに設定を入力</h2>
+<h2>5. アプリにログインして設定を入力</h2>
 <ol>
   <li><a href="./">MTG 録音メモ</a> を開く</li>
+  <li>管理者から案内された <strong>利用者ID</strong> と <strong>パスワード</strong> でログイン</li>
   <li>「⚙️ 設定」を開く</li>
   <li>以下を入力:
     <ul>
+      <li><strong>利用者名</strong> — 会社名や担当者名など、識別しやすい名前</li>
       <li><strong>Gemini API キー</strong> — ステップ 1 で取得したキー</li>
       <li><strong>スプレッドシート ID</strong> — ステップ 2 で取得した ID</li>
       <li><strong>Notion DB ID</strong> — ステップ 3-2 で取得した ID（任意）</li>
@@ -160,6 +163,8 @@
   <li>「💾 保存」をクリック</li>
   <li>「🔗 接続テスト」を押して、保存先にテストデータが追加されることを確認</li>
 </ol>
+<div class="note">設定はログイン中の利用者情報として保存されます。別のPCやブラウザからでも、同じIDでログインすれば設定を引き継げます。</div>
+<div class="warn">NotionトークンやGemini APIキーは保存後に画面へ再表示されません。変更したい場合だけ、新しい値を入力して保存してください。</div>
 
 <h2>6. 使い方</h2>
 <div class="card">
@@ -179,7 +184,7 @@
 <p>Gemini 無料枠は 1 日 1,500 リクエスト程度です。個人利用なら十分です。</p>
 
 <h3>データはどこに保存される？</h3>
-<p>音声データはブラウザ内のみ。テキストと要約は設定した保存先（スプレッドシート / Notion）に送信されます。</p>
+<p>音声データはブラウザ内のみ。テキストと要約はログイン中の利用者設定に紐づいた保存先（スプレッドシート / Notion）に送信されます。</p>
 
 <h3>コストは？</h3>
 <p>基本無料です（Gemini API 無料枠 + Notion 無料プラン + Google Apps Script 無料枠）。</p>
@@ -189,7 +194,7 @@
 <strong>Android:</strong> Chrome でアプリを開く → メニュー → 「ホーム画面に追加」</p>
 
 <div style="margin-top:40px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);">
-  設定値はすべてお使いのブラウザにのみ保存されます。外部に送信されるのは AI 要約時と保存先への送信時のみです。
+  設定値はログイン中の利用者情報として保存されます。ブラウザにはログイン状態のみ保存され、NotionトークンやGemini APIキーは再表示されません。
 </div>
 
 </div>

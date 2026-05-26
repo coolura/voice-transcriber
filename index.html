@@ -19,10 +19,41 @@
   <div id="noticeEl" class="notice" style="display:none;"></div>
   <div id="infoEl"   class="info"   style="display:none;"></div>
 
+  <!-- Login -->
+  <div class="card" id="loginCard">
+    <h2>🔐 利用者ログイン</h2>
+    <div class="field-block">
+      <div class="field-label"><span>利用者ID</span></div>
+      <input class="field" id="loginUserId" type="text" placeholder="例：client001" autocomplete="username">
+    </div>
+    <div class="field-block">
+      <div class="field-label"><span>パスワード</span></div>
+      <input class="field" id="loginPassword" type="password" placeholder="パスワード" autocomplete="current-password">
+    </div>
+    <button class="save-btn" id="loginBtn">ログイン</button>
+    <p class="set-note" style="margin-top:10px;">設定内容はログイン中の利用者に紐づいて保存されます。</p>
+  </div>
+
+  <div class="card app-only" id="accountCard" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+      <div>
+        <h2 style="margin-bottom:4px;">👤 ログイン中</h2>
+        <p class="set-note" id="accountStatus" style="margin:0;">-</p>
+      </div>
+      <button class="btn-ghost" id="logoutBtn">ログアウト</button>
+    </div>
+  </div>
+
   <!-- Settings -->
-  <div class="card">
+  <div class="card app-only" style="display:none;">
     <details id="settingsDetails">
       <summary>⚙️ 設定 <a href="guide.html" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;font-weight:400;margin-left:8px;">📖 設定マニュアル</a></summary>
+      <div style="margin-bottom:12px;">
+        <span class="set-label">利用者名</span>
+        <div class="set-row">
+          <input id="displayNameInput" type="text" placeholder="例：山田商事" style="flex:1;min-width:200px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+        </div>
+      </div>
       <div style="margin-bottom:12px;">
         <span class="set-label">Gemini API キー <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--accent);font-size:11px;">▶ 取得</a></span>
         <div class="set-row">
@@ -65,12 +96,12 @@
         <button class="btn-ghost" id="testNotionBtn">🔗 接続テスト</button>
         <span class="flash" id="settingsFlash">✓ 保存しました</span>
       </div>
-      <p class="set-note">キーはこのブラウザの localStorage にのみ保存。外部送信は要約・Notion 保存の時だけです。</p>
+      <p class="set-note">設定はログイン中の利用者情報として管理用スプレッドシートに保存されます。APIキーやトークンは保存後に再表示されません。</p>
     </details>
   </div>
 
   <!-- Recording form (single page) -->
-  <div class="card">
+  <div class="card app-only" style="display:none;">
     <h2>📝 新しい MTG 録音</h2>
 
     <!-- Client Name -->
@@ -152,7 +183,7 @@
   </div>
 
   <!-- Google Calendar card (shown when client ID is set) -->
-  <div class="card" id="calCard" style="display:none;">
+  <div class="card app-only" id="calCard" style="display:none;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
       <h2 style="margin:0;">📅 Google カレンダー</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -166,7 +197,7 @@
   </div>
 
   <!-- List -->
-  <div class="card">
+  <div class="card app-only" style="display:none;">
     <div class="list-top">
       <h2>📋 録音履歴 <span class="badge" id="cntBadge">0</span></h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -230,11 +261,14 @@
   const dbGetAll = () => dbRun('readonly',  s => s.getAll());
   const dbClear  = () => dbRun('readwrite', s => s.clear());
 
-  /* ===== localStorage ===== */
+  /* ===== Apps Script API ===== */
   // 管理者が Apps Script デプロイ時に取得した URL を設定
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbx7Em2KX4zfnWkDanHKQx1Ic90cyglTOywZYVGb8dFYvNm-Kp0gqhj4RDMfG6HxRE-y/exec';
 
-  const LS = { KEY:'gemini_api_key', MODEL:'gemini_model', SHEET_ID:'user_sheet_id', NOTION_DBID:'user_notion_db_id', NOTION_TOKEN:'user_notion_token' };
+  const AUTH_LS = { TOKEN:'mtg_auth_token', USER_ID:'mtg_auth_user_id' };
+  let authToken = localStorage.getItem(AUTH_LS.TOKEN) || '';
+  let currentUser = null;
+  let currentSettings = null;
 
   /* ===== Default prompt ===== */
   const DEFAULT_PROMPT = `以下はMTGを音声録音・文字起こししたテキストです。日本語でMTG議事録として整理してください。
@@ -261,36 +295,133 @@
   function showInfo(msg)  { infoEl.innerHTML = msg; infoEl.style.display = 'block'; }
   function hideNotice()   { noticeEl.style.display = 'none'; }
 
+  /* ===== Auth ===== */
+  const loginCard = $('loginCard'), loginUserId = $('loginUserId'), loginPassword = $('loginPassword'),
+        loginBtn = $('loginBtn'), accountCard = $('accountCard'), accountStatus = $('accountStatus'),
+        logoutBtn = $('logoutBtn');
+
+  function setAppVisible(visible) {
+    document.querySelectorAll('.app-only').forEach(el => { el.style.display = visible ? '' : 'none'; });
+    loginCard.style.display = visible ? 'none' : 'block';
+    if (visible) refreshCalCard();
+  }
+
+  async function callApi(action, payload) {
+    if (!GAS_URL) throw new Error('Apps Script URL が未設定です');
+    const body = { action, ...(payload || {}) };
+    if (authToken) body.token = authToken;
+    const res = await fetch(GAS_URL, { method:'POST', body:JSON.stringify(body), redirect:'follow' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json().catch(()=>({}));
+    if (json?.error === 'AUTH_REQUIRED') {
+      logout(false);
+      throw new Error('ログインし直してください');
+    }
+    if (json?.ok === false) throw new Error(json.error || 'API エラー');
+    return json;
+  }
+
+  loginBtn.addEventListener('click', async () => {
+    loginBtn.disabled = true; loginBtn.textContent = 'ログイン中…';
+    try {
+      const json = await callApi('login', { userId:loginUserId.value.trim(), password:loginPassword.value });
+      authToken = json.token;
+      localStorage.setItem(AUTH_LS.TOKEN, authToken);
+      localStorage.setItem(AUTH_LS.USER_ID, json.user?.userId || loginUserId.value.trim());
+      loginPassword.value = '';
+      applySession(json.user, json.settings);
+    } catch (err) {
+      showError('ログイン失敗: ' + err.message);
+    } finally {
+      loginBtn.disabled = false; loginBtn.textContent = 'ログイン';
+    }
+  });
+
+  loginPassword.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') loginBtn.click();
+  });
+
+  logoutBtn.addEventListener('click', () => logout(true));
+
+  function logout(showMessage) {
+    authToken = '';
+    currentUser = null;
+    currentSettings = null;
+    localStorage.removeItem(AUTH_LS.TOKEN);
+    localStorage.removeItem(AUTH_LS.USER_ID);
+    setAppVisible(false);
+    if (showMessage) showInfo('ログアウトしました。');
+  }
+
+  function applySession(user, settings) {
+    currentUser = user || {};
+    currentSettings = settings || {};
+    accountStatus.textContent = `${currentUser.displayName || currentUser.userId || '利用者'} としてログインしています`;
+    populateSettings(currentSettings);
+    setAppVisible(true);
+    settingsDetails.open = !settingsComplete(currentSettings);
+    initCalTokenClient();
+    renderList();
+  }
+
+  function settingsComplete(settings) {
+    return Boolean((settings?.spreadsheetId || settings?.notionDatabaseId) && settings?.hasGeminiApiKey);
+  }
+
   /* ===== Settings ===== */
   const apiKeyInput = $('apiKeyInput'), modelSelect = $('modelSelect'),
         saveSettingsBtn = $('saveSettingsBtn'), testNotionBtn = $('testNotionBtn'),
         settingsFlash = $('settingsFlash'), settingsDetails = $('settingsDetails');
-
-  apiKeyInput.value    = localStorage.getItem(LS.KEY)   || '';
-  modelSelect.value    = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
-  if (!apiKeyInput.value || !GAS_URL) settingsDetails.open = true;
+  const displayNameInput = $('displayNameInput');
+  const userSheetInput = $('userSheetInput'), userNotionDbInput = $('userNotionDbInput'), userNotionTokenInput = $('userNotionTokenInput');
 
   const promptInput = $('promptInput');
-  promptInput.value = localStorage.getItem('gemini_prompt') || DEFAULT_PROMPT;
+  promptInput.value = DEFAULT_PROMPT;
 
-  saveSettingsBtn.addEventListener('click', () => {
-    localStorage.setItem(LS.KEY,          apiKeyInput.value.trim());
-    localStorage.setItem(LS.MODEL,        modelSelect.value);
-    localStorage.setItem(LS.SHEET_ID,     userSheetInput.value.trim());
-    localStorage.setItem(LS.NOTION_DBID,  userNotionDbInput.value.trim());
-    localStorage.setItem(LS.NOTION_TOKEN, userNotionTokenInput.value.trim());
-    localStorage.setItem('gemini_prompt', promptInput.value);
-    localStorage.setItem(LS_GCAL.CLIENT_ID, gcalClientIdInput.value.trim());
-    localStorage.setItem(LS_GCAL.EMBED,      gcalEmbedUrlInput.value.trim());
-    localStorage.setItem(LS_GCAL.COUNT,      gcalCountInput.value);
+  function populateSettings(settings) {
+    displayNameInput.value = settings.displayName || '';
+    apiKeyInput.value = '';
+    apiKeyInput.placeholder = settings.hasGeminiApiKey ? '設定済み（変更する場合のみ入力）' : 'AIza...';
+    modelSelect.value = settings.geminiModel || 'gemini-2.5-flash';
+    userSheetInput.value = settings.spreadsheetId || '';
+    userNotionDbInput.value = settings.notionDatabaseId || '';
+    userNotionTokenInput.value = '';
+    userNotionTokenInput.placeholder = settings.hasNotionToken ? '設定済み（変更する場合のみ入力）' : 'Notion トークン (ntn_xxx…)';
+    promptInput.value = settings.prompt || DEFAULT_PROMPT;
+    gcalClientIdInput.value = settings.gcalClientId || '';
+    gcalEmbedUrlInput.value = settings.gcalEmbedUrl || '';
+    gcalCountInput.value = settings.gcalCount || '5';
     refreshCalCard();
-    settingsFlash.classList.add('show');
-    setTimeout(() => settingsFlash.classList.remove('show'), 1500);
+  }
+
+  saveSettingsBtn.addEventListener('click', async () => {
+    saveSettingsBtn.disabled = true; saveSettingsBtn.textContent = '保存中…';
+    try {
+      const json = await callApi('saveSettings', { settings:{
+        displayName: displayNameInput.value.trim(),
+        geminiApiKey: apiKeyInput.value.trim(),
+        geminiModel: modelSelect.value,
+        spreadsheetId: userSheetInput.value.trim(),
+        notionDatabaseId: userNotionDbInput.value.trim(),
+        notionToken: userNotionTokenInput.value.trim(),
+        prompt: promptInput.value,
+        gcalClientId: gcalClientIdInput.value.trim(),
+        gcalEmbedUrl: gcalEmbedUrlInput.value.trim(),
+        gcalCount: gcalCountInput.value,
+      }});
+      applySession(json.user, json.settings);
+      settingsFlash.classList.add('show');
+      setTimeout(() => settingsFlash.classList.remove('show'), 1500);
+    } catch (err) {
+      showError('設定保存失敗: ' + err.message);
+    } finally {
+      saveSettingsBtn.disabled = false; saveSettingsBtn.textContent = '💾 保存';
+    }
   });
   testNotionBtn.addEventListener('click', async () => {
     testNotionBtn.disabled = true; testNotionBtn.textContent = '送信中…';
     try {
-      const result = await sendToApi({ id:'test_'+Date.now(), clientName:'テスト', mtgDate:todayStr(), text:'接続テスト', summary:'接続テスト成功', durationSec:0, createdAt:new Date().toISOString(), destinations:['notion','sheet'] });
+      const result = await saveRecordingToServer({ id:'test_'+Date.now(), clientName:'テスト', mtgDate:todayStr(), text:'接続テスト', agenda:'', durationSec:0, createdAt:new Date().toISOString(), destinations:['notion','sheet'] });
       const r = result?.results || {};
       const lines = [];
       if (r.notion) lines.push('Notion: ' + (r.notion.ok ? '✅' : '❌ ' + (r.notion.error || '')));
@@ -304,12 +435,6 @@
     } catch (err) { showError('接続テスト失敗: ' + err.message); testNotionBtn.textContent = '🔗 接続テスト'; }
     setTimeout(() => { testNotionBtn.textContent = '🔗 接続テスト'; testNotionBtn.disabled = false; }, 3000);
   });
-
-  /* ===== User Destination Settings ===== */
-  const userSheetInput = $('userSheetInput'), userNotionDbInput = $('userNotionDbInput'), userNotionTokenInput = $('userNotionTokenInput');
-  userSheetInput.value      = localStorage.getItem(LS.SHEET_ID)     || '';
-  userNotionDbInput.value   = localStorage.getItem(LS.NOTION_DBID)  || '';
-  userNotionTokenInput.value = localStorage.getItem(LS.NOTION_TOKEN) || '';
 
   /* ===== Browser check ===== */
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -653,22 +778,17 @@
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
     let summary = '';
 
-    try {
-      summary = await geminiSummarize(state.contentText);
-      setSavRow('rowGemini', '✅', 'AI 要約完了', true);
-    } catch(err) { setSavRow('rowGemini', '⚠️', 'AI 要約スキップ: ' + err.message, true); }
-
-    const uSheet = (localStorage.getItem(LS.SHEET_ID) || '').trim();
-    const uNdb   = (localStorage.getItem(LS.NOTION_DBID) || '').trim();
-    const uNtk   = (localStorage.getItem(LS.NOTION_TOKEN) || '').trim();
-    const payload = { id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, createdAt:new Date().toISOString(), destinations, ...(uSheet && { spreadsheetId: uSheet }), ...(uNdb && { notionDatabaseId: uNdb }), ...(uNtk && { notionToken: uNtk }) };
+    const payload = { id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, agenda:state.agenda, durationSec:state.durationSec, createdAt:new Date().toISOString(), destinations };
 
     let sentAt = null;
     if (destinations.indexOf('notion') !== -1) setSavRow('rowNotion', '⏳', 'Notion に送信中…', false);
     if (destinations.indexOf('sheet')  !== -1) setSavRow('rowSheet',  '⏳', 'スプレッドシートに送信中…', false);
 
     try {
-      const result = await sendToApi(payload);
+      const result = await saveRecordingToServer(payload);
+      summary = result.summary || '';
+      if (result.summaryError) setSavRow('rowGemini', '⚠️', 'AI 要約スキップ: ' + result.summaryError, true);
+      else setSavRow('rowGemini', '✅', 'AI 要約完了', true);
       // 結果は { ok, results: { notion: {ok,error,url}, sheet: {ok,error,row} } } の形
       const r = result?.results || {};
       if (destinations.indexOf('notion') !== -1) {
@@ -680,13 +800,14 @@
         else             { setSavRow('rowSheet', '⚠️', 'スプレッドシート失敗: ' + (r.sheet?.error || '不明'), true); }
       }
     } catch(err) {
+      setSavRow('rowGemini', '⚠️', '保存処理失敗: ' + err.message, true);
       if (destinations.indexOf('notion') !== -1) setSavRow('rowNotion', '⚠️', '送信失敗: ' + err.message, true);
       if (destinations.indexOf('sheet')  !== -1) setSavRow('rowSheet',  '⚠️', '送信失敗: ' + err.message, true);
     }
 
     setSavRow('rowLocal', '⏳', 'ブラウザに保存中…', false);
     try {
-      await dbAdd({ id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, audioBlob:state.contentAudio, audioType:state.contentType, createdAt:new Date().toISOString(), sentAt, destinations });
+      await dbAdd({ id, ownerUserId:currentUser?.userId || '', clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, audioBlob:state.contentAudio, audioType:state.contentType, createdAt:new Date().toISOString(), sentAt, destinations });
       setSavRow('rowLocal', '✅', 'ブラウザに保存完了', true);
     } catch(err) { setSavRow('rowLocal', '⚠️', '保存失敗: ' + err.message, true); }
 
@@ -727,45 +848,14 @@
     saveBtn.disabled = true;
   }
 
-  /* ===== Gemini ===== */
-  async function geminiSummarize(text) {
-    const key   = (localStorage.getItem(LS.KEY) || '').trim();
-    const model = localStorage.getItem(LS.MODEL) || 'gemini-2.5-flash';
-    if (!key) throw new Error('Gemini API キーが未設定です');
-
-    const savedPromptTemplate = (localStorage.getItem('gemini_prompt') || '').trim() || DEFAULT_PROMPT;
-    // Replace ${text} placeholder in the prompt template
-    let prompt = savedPromptTemplate.replace('${text}', text);
-
-    // Prepend agenda if present
-    const agenda = (state.agenda || agendaField.value || '').trim();
-    if (agenda) {
-      prompt = `【MTGのアジェンダ】\n${agenda}\n\n` + prompt;
-    }
-
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.2, maxOutputTokens:1024} }),
-    });
-    if (!res.ok) { const j = await res.json().catch(()=>{}); throw new Error(`Gemini ${res.status}: ${j?.error?.message||res.statusText}`); }
-    const data = await res.json();
-    const out  = data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n').trim();
-    if (!out) throw new Error('要約結果が空でした');
-    return out;
-  }
-
-  /* ===== Apps Script API (Notion + Sheet) ===== */
-  async function sendToApi(payload) {
-    if (!GAS_URL) throw new Error('Apps Script URL が未設定です');
-    const res = await fetch(GAS_URL, { method:'POST', body:JSON.stringify(payload), redirect:'follow' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json().catch(()=>({}));
-    return json;
+  /* ===== Apps Script API (Gemini + Notion + Sheet) ===== */
+  async function saveRecordingToServer(payload) {
+    return callApi('saveRecording', { recording:payload });
   }
   // 後方互換用 (再送信ボタンなど)
   async function sendToNotion(payload) {
     if (!payload.destinations) payload.destinations = ['notion'];
-    const json = await sendToApi(payload);
+    const json = await saveRecordingToServer(payload);
     if (json?.ok === false) {
       const errs = json.results ? Object.values(json.results).filter(r=>!r.ok).map(r=>r.error).join(' / ') : (json.error || 'Unknown error');
       throw new Error(errs);
@@ -791,6 +881,11 @@
   /* ===== List ===== */
   const audioCache = new Map();
   function revokeAll() { audioCache.forEach(u => URL.revokeObjectURL(u)); audioCache.clear(); }
+  async function getOwnedEntries() {
+    const ownerUserId = currentUser?.userId || '';
+    const all = await dbGetAll();
+    return all.filter(e => (e.ownerUserId || '') === ownerUserId);
+  }
 
   function buildCard(e) {
     let audioHtml = '';
@@ -822,7 +917,7 @@
   async function renderList() {
     revokeAll();
     const q   = $('searchInput').value.trim().toLowerCase();
-    const all = await dbGetAll();
+    const all = await getOwnedEntries();
     all.sort((a,b) => a.createdAt < b.createdAt ? 1 : -1);
     $('cntBadge').textContent = all.length;
     const rows = q ? all.filter(e => (e.clientName||'').toLowerCase().includes(q) || (e.text||'').toLowerCase().includes(q)) : all;
@@ -851,7 +946,7 @@
     const btn = ev.target.closest('[data-act]');
     if (!btn) return;
     const { act, id } = btn.dataset;
-    const all   = await dbGetAll();
+    const all   = await getOwnedEntries();
     const entry = all.find(e => e.id === id);
     if (!entry) return;
     if (act === 'del') {
@@ -905,9 +1000,12 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
 
   $('searchInput').addEventListener('input', renderList);
   $('clearAllBtn').addEventListener('click', async () => {
-    const all = await dbGetAll();
+    const all = await getOwnedEntries();
     if (!all.length) return;
-    if (confirm(`${all.length}件すべて削除しますか？`)) { await dbClear(); await renderList(); }
+    if (confirm(`${all.length}件すべて削除しますか？`)) {
+      await Promise.all(all.map(e => dbDelete(e.id)));
+      await renderList();
+    }
   });
 
   /* ===== Helpers ===== */
@@ -930,19 +1028,15 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
   }
 
   /* ===== Google Calendar ===== */
-  const LS_GCAL = { CLIENT_ID:'gcal_client_id', EMBED:'gcal_embed_url', COUNT:'gcal_count' };
   const gcalClientIdInput = $('gcalClientId');
   const gcalEmbedUrlInput = $('gcalEmbedUrl');
   const gcalCountInput    = $('gcalCount');
-  gcalClientIdInput.value = localStorage.getItem(LS_GCAL.CLIENT_ID) || '';
-  gcalEmbedUrlInput.value = localStorage.getItem(LS_GCAL.EMBED) || '';
-  gcalCountInput.value    = localStorage.getItem(LS_GCAL.COUNT) || '5';
+  gcalCountInput.value    = '5';
 
   function refreshCalCard() {
-    const cid = (localStorage.getItem(LS_GCAL.CLIENT_ID) || '').trim();
-    $('calCard').style.display = cid ? 'block' : 'none';
+    const cid = (currentSettings?.gcalClientId || '').trim();
+    $('calCard').style.display = (authToken && cid) ? 'block' : 'none';
   }
-  refreshCalCard();
 
   let calTokenClient = null, calAccessToken = null;
   const calLoginBtn     = $('calLoginBtn');
@@ -952,7 +1046,7 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
   const calIframeWrap   = $('calIframeWrap');
 
   function initCalTokenClient() {
-    const cid = (localStorage.getItem(LS_GCAL.CLIENT_ID) || '').trim();
+    const cid = (currentSettings?.gcalClientId || '').trim();
     if (!cid || !window.google?.accounts?.oauth2) return;
     calTokenClient = google.accounts.oauth2.initTokenClient({
       client_id: cid,
@@ -988,7 +1082,7 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
 
   let iframeShowing = false;
   calIframeToggle.addEventListener('click', () => {
-    const embedUrl = (localStorage.getItem(LS_GCAL.EMBED) || '').trim();
+    const embedUrl = (currentSettings?.gcalEmbedUrl || '').trim();
     if (!embedUrl) { showError('設定にカレンダー埋め込みURLを入力してください。'); return; }
     iframeShowing = !iframeShowing;
     calIframeToggle.textContent = iframeShowing ? '🗓 カレンダーを隠す' : '🗓 カレンダー表示';
@@ -1003,7 +1097,7 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
 
   async function fetchCalEvents() {
     if (!calAccessToken) return;
-    const count = parseInt(localStorage.getItem(LS_GCAL.COUNT) || '5');
+    const count = parseInt(currentSettings?.gcalCount || '5');
     calEventsList.innerHTML = '<p style="font-size:13px;color:var(--muted);">読み込み中…</p>';
     try {
       const now = new Date().toISOString();
@@ -1033,7 +1127,19 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
   /* ===== PWA Service Worker ===== */
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
-  renderList();
+  async function restoreSession() {
+    setAppVisible(false);
+    if (!authToken) return;
+    try {
+      const json = await callApi('getSettings');
+      applySession(json.user, json.settings);
+    } catch (err) {
+      showError('セッション確認に失敗しました。ログインし直してください。');
+      logout(false);
+    }
+  }
+
+  restoreSession();
 })();
 </script>
 </body>
