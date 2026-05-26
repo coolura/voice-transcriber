@@ -727,9 +727,8 @@ ${text}
 
   /* ===== Apps Script API (Notion + Sheet) ===== */
   async function sendToApi(payload) {
-    const url = GAS_URL || (localStorage.getItem('sheet_webapp_url') || '').trim();
-    if (!url) throw new Error('Apps Script URL が未設定です');
-    const res = await fetch(url, { method:'POST', body:JSON.stringify(payload), redirect:'follow' });
+    if (!GAS_URL) throw new Error('Apps Script URL が未設定です');
+    const res = await fetch(GAS_URL, { method:'POST', body:JSON.stringify(payload), redirect:'follow' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json().catch(()=>({}));
     return json;
