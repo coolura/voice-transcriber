@@ -71,7 +71,81 @@
 <p>この場合、DB ID は <code>36b1e4c4319e80c3bb45f8e6251a16f9</code> です。</p>
 <div class="note">データベースにはタイトル型のプロパティ「名前」を用意してください。</div>
 
-<h2>4. アプリに設定を入力</h2>
+<h2>4. Google カレンダー連携（任意）</h2>
+<p>アプリ画面に直近のカレンダー予定を表示したり、カレンダー自体を埋め込むことができます。MTG前のスケジュール確認に便利です。</p>
+<div class="note">カレンダー機能を使わない場合はスキップできます。</div>
+
+<h3>4-1. Google Cloud Console で OAuth クライアント ID を取得</h3>
+<p>カレンダーの予定を読み取るための認証情報を作成します。</p>
+<ol>
+  <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> を開く</li>
+  <li>上部のプロジェクト選択 →「新しいプロジェクト」→ 名前（例: <code>mtg-recorder</code>）を入力して作成</li>
+  <li>左メニュー「APIとサービス」→「ライブラリ」を開く</li>
+  <li>検索欄に <code>Google Calendar API</code> と入力 → 表示された API を選び「有効にする」をクリック</li>
+  <li>左メニュー「APIとサービス」→「OAuth 同意画面」を開く
+    <ul>
+      <li>User Type: <strong>外部</strong> を選択 →「作成」</li>
+      <li>アプリ名（例: <code>MTG録音メモ</code>）、ユーザーサポートメール、デベロッパー連絡先メールを入力</li>
+      <li>「保存して次へ」を最後まで進める</li>
+      <li>「テストユーザー」に自分の Google アカウントを追加</li>
+    </ul>
+  </li>
+  <li>左メニュー「APIとサービス」→「認証情報」を開く</li>
+  <li>「+ 認証情報を作成」→「OAuth クライアント ID」を選択</li>
+  <li>アプリケーションの種類: <strong>ウェブアプリケーション</strong></li>
+  <li>名前（例: <code>MTG録音メモ Web</code>）を入力</li>
+  <li><strong>承認済みの JavaScript 生成元</strong> に以下を追加:
+    <ul>
+      <li><code>https://coolura.github.io</code></li>
+    </ul>
+  </li>
+  <li>「作成」をクリック</li>
+  <li>表示された <strong>クライアント ID</strong>（<code>xxxxx.apps.googleusercontent.com</code> の形式）をコピー</li>
+</ol>
+<div class="warn">「承認済みの JavaScript 生成元」が間違っているとログイン時にエラーになります。<code>https://coolura.github.io</code>（末尾スラッシュなし）を正確に入力してください。</div>
+
+<h3>4-2. カレンダー埋め込み URL の取得（任意）</h3>
+<p>アプリ内に Google カレンダーを iframe で表示したい場合に必要です。</p>
+<ol>
+  <li><a href="https://calendar.google.com/" target="_blank" rel="noopener">Google カレンダー</a> を開く</li>
+  <li>左サイドバーの「マイカレンダー」から表示したいカレンダーにマウスを乗せる</li>
+  <li>「…」（オプション）→「設定と共有」をクリック</li>
+  <li>下にスクロールして「<strong>カレンダーの統合</strong>」セクションを探す</li>
+  <li>「<strong>埋め込みコード</strong>」の中にある <code>src="..."</code> の URL 部分をコピー
+    <ul>
+      <li>例: <code>https://calendar.google.com/calendar/embed?src=自分のメール&ctz=Asia%2FTokyo</code></li>
+    </ul>
+  </li>
+</ol>
+<div class="note">非公開カレンダーでも、自分が認証してログインしていれば iframe 内で表示されます。</div>
+
+<h3>4-3. アプリの設定画面に入力</h3>
+<ol>
+  <li><a href="./">MTG 録音メモ</a> を開き「⚙️ 設定」を展開</li>
+  <li>「📅 Google カレンダー連携（任意）」セクションに入力:
+    <ul>
+      <li><strong>クライアント ID</strong> — ステップ 4-1 で取得した <code>xxx.apps.googleusercontent.com</code></li>
+      <li><strong>埋め込み URL</strong> — ステップ 4-2 で取得した URL（任意）</li>
+      <li><strong>表示件数</strong> — 直近何件の予定を表示するか（デフォルト 5）</li>
+    </ul>
+  </li>
+  <li>「💾 保存」をクリック</li>
+  <li>画面に「📅 Google カレンダー」カードが表示される</li>
+  <li>「Googleでログイン」をクリック → アカウント選択 → 「許可」をクリック</li>
+  <li>直近の予定一覧が表示される</li>
+  <li>「🗓 カレンダー表示」をクリックすると、埋め込みカレンダーが下に展開される</li>
+</ol>
+<div class="note">初回ログイン時に「Google によって確認されていないアプリ」と表示される場合があります。「詳細」→「（アプリ名）に移動」で進めます（自分が作ったアプリなので安全です）。</div>
+
+<h3>4-4. うまく動かないとき</h3>
+<ul>
+  <li><strong>「origin not allowed」エラー</strong> → Google Cloud Console で承認済み JavaScript 生成元に <code>https://coolura.github.io</code> を追加しているか確認</li>
+  <li><strong>「access_denied」エラー</strong> → OAuth 同意画面のテストユーザーに自分のアカウントが追加されているか確認</li>
+  <li><strong>カレンダーが表示されない</strong> → 埋め込み URL が正しいか、カレンダーの共有設定を確認</li>
+  <li><strong>ログインしても予定が出ない</strong> → Google Calendar API が有効になっているか Cloud Console で確認</li>
+</ul>
+
+<h2>5. アプリに設定を入力</h2>
 <ol>
   <li><a href="./">MTG 録音メモ</a> を開く</li>
   <li>「⚙️ 設定」を開く</li>
@@ -87,7 +161,7 @@
   <li>「🔗 接続テスト」を押して、保存先にテストデータが追加されることを確認</li>
 </ol>
 
-<h2>5. 使い方</h2>
+<h2>6. 使い方</h2>
 <div class="card">
   <ol>
     <li><strong>クライアント名</strong>を入力（話すか直接入力）</li>
