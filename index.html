@@ -196,6 +196,16 @@ details[open] > summary { margin-bottom: 14px; }
           <input id="notionUrlInput" type="password" placeholder="https://script.google.com/macros/s/..." autocomplete="off">
         </div>
       </div>
+      <div style="margin-top:14px;">
+        <span class="set-label">📊 クライアント別スプレッドシート設定</span>
+        <div id="csListEl" style="margin-bottom:8px;"></div>
+        <div class="set-row">
+          <input id="csClientInput" type="text" placeholder="クライアント名" style="flex:1;min-width:120px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+          <input id="csSheetInput" type="text" placeholder="スプレッドシートID" style="flex:2;min-width:200px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
+          <button class="btn-ghost" id="csAddBtn">＋ 追加</button>
+        </div>
+        <p class="set-note">スプレッドシート URL の「/d/」と「/edit」の間の文字列が ID です。未設定のクライアントはデフォルトのスプレッドシートに保存されます。</p>
+      </div>
       <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
         <button class="btn-ghost" id="saveSettingsBtn">💾 保存</button>
         <button class="btn-ghost" id="testNotionBtn">🔗 接続テスト</button>
@@ -219,6 +229,7 @@ details[open] > summary { margin-bottom: 14px; }
         <input class="field" id="clientField" type="text" placeholder="例：山田商事">
         <button class="rec-btn-sm" id="clientRecBtn">🎙️ 録音</button>
       </div>
+      <div id="csIndicator" style="font-size:11px;color:var(--accent);margin-top:4px;display:none;"></div>
     </div>
 
     <!-- MTG Date -->
@@ -329,7 +340,7 @@ details[open] > summary { margin-bottom: 14px; }
   const dbClear  = () => dbRun('readwrite', s => s.clear());
 
   /* ===== localStorage ===== */
-  const LS = { KEY:'gemini_api_key', MODEL:'gemini_model', NOTION:'sheet_webapp_url' };
+  const LS = { KEY:'gemini_api_key', MODEL:'gemini_model', NOTION:'sheet_webapp_url', CSMAP:'client_spreadsheets' };
 
   /* ===== DOM ===== */
   const $ = id => document.getElementById(id);
@@ -373,6 +384,57 @@ details[open] > summary { margin-bottom: 14px; }
     } catch (err) { showError('接続テスト失敗: ' + err.message); testNotionBtn.textContent = '🔗 接続テスト'; }
     setTimeout(() => { testNotionBtn.textContent = '🔗 接続テスト'; testNotionBtn.disabled = false; }, 3000);
   });
+
+  /* ===== Client-Sheet Mapping ===== */
+  function getCSMap() { try { return JSON.parse(localStorage.getItem(LS.CSMAP) || '{}'); } catch(_) { return {}; } }
+  function saveCSMap(m) { localStorage.setItem(LS.CSMAP, JSON.stringify(m)); }
+
+  const csListEl = $('csListEl'), csClientInput = $('csClientInput'), csSheetInput = $('csSheetInput'), csAddBtn = $('csAddBtn');
+
+  function renderCSList() {
+    const map = getCSMap();
+    const keys = Object.keys(map);
+    if (!keys.length) { csListEl.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:4px 0;">（未設定 — 全クライアントがデフォルトシートに保存されます）</div>'; return; }
+    csListEl.innerHTML = keys.map(k =>
+      '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);">' +
+        '<span style="flex-shrink:0;font-weight:600;">' + esc(k) + '</span>' +
+        '<span style="flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;">' + esc(map[k]) + '</span>' +
+        '<button class="btn-ghost" style="padding:2px 8px;font-size:11px;" data-cs-del="' + esc(k) + '">✕</button>' +
+      '</div>'
+    ).join('');
+  }
+
+  csAddBtn.addEventListener('click', () => {
+    const name = csClientInput.value.trim();
+    const sid = csSheetInput.value.trim();
+    if (!name || !sid) { showError('クライアント名とスプレッドシート ID を入力してください'); return; }
+    const map = getCSMap();
+    map[name] = sid;
+    saveCSMap(map);
+    csClientInput.value = '';
+    csSheetInput.value = '';
+    renderCSList();
+    updateCSIndicator();
+  });
+
+  csListEl.addEventListener('click', ev => {
+    const btn = ev.target.closest('[data-cs-del]');
+    if (!btn) return;
+    const map = getCSMap();
+    delete map[btn.dataset.csDel];
+    saveCSMap(map);
+    renderCSList();
+    updateCSIndicator();
+  });
+
+  function updateCSIndicator() {
+    const el = $('csIndicator');
+    const sid = getCSMap()[state.clientName];
+    if (sid) { el.textContent = '📊 専用スプレッドシートに保存されます'; el.style.display = 'block'; }
+    else { el.style.display = 'none'; }
+  }
+
+  renderCSList();
 
   /* ===== Browser check ===== */
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -578,6 +640,7 @@ details[open] > summary { margin-bottom: 14px; }
     } else {
       saveBtn.textContent = '✨ AI要約 & ' + destLabel() + ' に保存';
     }
+    updateCSIndicator();
   }
   destNotionEl.addEventListener('change', updateSaveBtn);
   destSheetEl .addEventListener('change', updateSaveBtn);
@@ -612,7 +675,8 @@ details[open] > summary { margin-bottom: 14px; }
       setSavRow('rowGemini', '✅', 'AI 要約完了', true);
     } catch(err) { setSavRow('rowGemini', '⚠️', 'AI 要約スキップ: ' + err.message, true); }
 
-    const payload = { id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, createdAt:new Date().toISOString(), destinations };
+    const sheetId = getCSMap()[state.clientName] || '';
+    const payload = { id, clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, createdAt:new Date().toISOString(), destinations, ...(sheetId && { spreadsheetId: sheetId }) };
 
     let sentAt = null;
     if (destinations.indexOf('notion') !== -1) setSavRow('rowNotion', '⏳', 'Notion に送信中…', false);

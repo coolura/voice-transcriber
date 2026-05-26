@@ -103,7 +103,7 @@ function saveToNotion_(data) {
 /* ===== スプレッドシート保存（行追加） ===== */
 function saveToSheet_(data) {
   try {
-    const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const ss    = SpreadsheetApp.openById(data.spreadsheetId || SPREADSHEET_ID);
     let   sheet = ss.getSheetByName(SHEET_NAME);
     if (!sheet) {
       sheet = ss.insertSheet(SHEET_NAME);
