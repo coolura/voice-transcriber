@@ -39,6 +39,7 @@
       <div>
         <h2 style="margin-bottom:4px;">👤 ログイン中</h2>
         <p class="set-note" id="accountStatus" style="margin:0;">-</p>
+        <div class="link-row" id="destinationLinks"></div>
       </div>
       <button class="btn-ghost" id="logoutBtn">ログアウト</button>
     </div>
@@ -74,7 +75,7 @@
           <input id="userNotionDbInput" type="text" placeholder="Notion DB ID" style="flex:1;min-width:140px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;">
           <input id="userNotionTokenInput" type="password" placeholder="Notion トークン (ntn_xxx…)" style="flex:1;min-width:140px;background:#0f172a;border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;" autocomplete="off">
         </div>
-        <p class="set-note">未設定の項目はデフォルトの保存先が使われます。<br>スプレッドシート ID = URL の「/d/」〜「/edit」の間 ／ Notion DB ID = DB URL末尾の32文字</p>
+        <p class="set-note">スプレッドシート ID = URL の「/d/」〜「/edit」の間 ／ Notion DB ID = DB URL末尾の32文字</p>
       </div>
       <div style="margin-top:12px;">
         <span class="set-label">📅 Google カレンダー連携（任意）</span>
@@ -199,14 +200,14 @@
   <!-- List -->
   <div class="card app-only" style="display:none;">
     <div class="list-top">
-      <h2>📋 録音履歴 <span class="badge" id="cntBadge">0</span></h2>
+      <h2>📋 保存履歴 <span class="badge" id="cntBadge">0</span></h2>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <div class="view-toggle">
           <button class="view-btn active" id="viewAll">全件</button>
           <button class="view-btn" id="viewClient">クライアント別</button>
         </div>
         <input class="search" id="searchInput" type="text" placeholder="クライアント名…">
-        <button class="btn-ghost" id="clearAllBtn">全削除</button>
+        <button class="btn-ghost" id="clearAllBtn">再読み込み</button>
       </div>
     </div>
     <div id="listEl"></div>
@@ -221,7 +222,7 @@
       <div class="saving-row pending" id="rowGemini"><span class="saving-icon">○</span><span>Gemini で AI 要約中…</span></div>
       <div class="saving-row pending" id="rowNotion" style="display:none;"><span class="saving-icon">○</span><span>Notion に送信中…</span></div>
       <div class="saving-row pending" id="rowSheet"  style="display:none;"><span class="saving-icon">○</span><span>スプレッドシートに送信中…</span></div>
-      <div class="saving-row pending" id="rowLocal"> <span class="saving-icon">○</span><span>ブラウザに保存中…</span></div>
+      <div class="saving-row pending" id="rowLocal"> <span class="saving-icon">○</span><span>保存履歴を更新中…</span></div>
     </div>
     <button class="saving-done-btn" id="savingDoneBtn">+ 次の録音へ</button>
   </div>
@@ -231,42 +232,18 @@
 (function () {
   'use strict';
 
-  /* ===== IndexedDB ===== */
-  const DB_NAME = 'voiceRecorderDB', STORE = 'recordings', DB_VER = 2;
-  let _db = null;
-  function openDB() {
-    if (_db) return Promise.resolve(_db);
-    return new Promise((res, rej) => {
-      const req = indexedDB.open(DB_NAME, DB_VER);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
-      };
-      req.onsuccess = () => { _db = req.result; res(_db); };
-      req.onerror   = () => rej(req.error);
-    });
+  /* ===== Browser storage cleanup ===== */
+  // 旧バージョンのブラウザ内履歴DBは使わず、保存履歴はサーバー経由で取得する。
+  if ('indexedDB' in window) {
+    try { indexedDB.deleteDatabase('voiceRecorderDB'); } catch (_) {}
   }
-  function dbRun(mode, fn) {
-    return openDB().then(db => new Promise((res, rej) => {
-      const tx = db.transaction(STORE, mode);
-      const s  = tx.objectStore(STORE);
-      const r  = fn(s);
-      if (r && 'onsuccess' in r) { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }
-      else { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }
-    }));
-  }
-  const dbAdd    = e  => dbRun('readwrite', s => s.add(e));
-  const dbPut    = e  => dbRun('readwrite', s => s.put(e));
-  const dbDelete = id => dbRun('readwrite', s => s.delete(id));
-  const dbGetAll = () => dbRun('readonly',  s => s.getAll());
-  const dbClear  = () => dbRun('readwrite', s => s.clear());
 
   /* ===== Apps Script API ===== */
   // 管理者が Apps Script デプロイ時に取得した URL を設定
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbx7Em2KX4zfnWkDanHKQx1Ic90cyglTOywZYVGb8dFYvNm-Kp0gqhj4RDMfG6HxRE-y/exec';
 
   const AUTH_LS = { TOKEN:'mtg_auth_token', USER_ID:'mtg_auth_user_id' };
-  let authToken = localStorage.getItem(AUTH_LS.TOKEN) || '';
+  let authToken = sessionStorage.getItem(AUTH_LS.TOKEN) || '';
   let currentUser = null;
   let currentSettings = null;
 
@@ -298,7 +275,7 @@
   /* ===== Auth ===== */
   const loginCard = $('loginCard'), loginUserId = $('loginUserId'), loginPassword = $('loginPassword'),
         loginBtn = $('loginBtn'), accountCard = $('accountCard'), accountStatus = $('accountStatus'),
-        logoutBtn = $('logoutBtn');
+        logoutBtn = $('logoutBtn'), destinationLinks = $('destinationLinks');
 
   function setAppVisible(visible) {
     document.querySelectorAll('.app-only').forEach(el => { el.style.display = visible ? '' : 'none'; });
@@ -326,8 +303,8 @@
     try {
       const json = await callApi('login', { userId:loginUserId.value.trim(), password:loginPassword.value });
       authToken = json.token;
-      localStorage.setItem(AUTH_LS.TOKEN, authToken);
-      localStorage.setItem(AUTH_LS.USER_ID, json.user?.userId || loginUserId.value.trim());
+      sessionStorage.setItem(AUTH_LS.TOKEN, authToken);
+      sessionStorage.setItem(AUTH_LS.USER_ID, json.user?.userId || loginUserId.value.trim());
       loginPassword.value = '';
       applySession(json.user, json.settings);
     } catch (err) {
@@ -347,8 +324,8 @@
     authToken = '';
     currentUser = null;
     currentSettings = null;
-    localStorage.removeItem(AUTH_LS.TOKEN);
-    localStorage.removeItem(AUTH_LS.USER_ID);
+    sessionStorage.removeItem(AUTH_LS.TOKEN);
+    sessionStorage.removeItem(AUTH_LS.USER_ID);
     setAppVisible(false);
     if (showMessage) showInfo('ログアウトしました。');
   }
@@ -357,11 +334,24 @@
     currentUser = user || {};
     currentSettings = settings || {};
     accountStatus.textContent = `${currentUser.displayName || currentUser.userId || '利用者'} としてログインしています`;
+    renderDestinationLinks();
     populateSettings(currentSettings);
     setAppVisible(true);
     settingsDetails.open = !settingsComplete(currentSettings);
     initCalTokenClient();
+    historyLoaded = false;
     renderList();
+  }
+
+  function renderDestinationLinks() {
+    const links = [];
+    if (currentSettings?.spreadsheetUrl) {
+      links.push(`<a class="btn-link" href="${esc(currentSettings.spreadsheetUrl)}" target="_blank" rel="noopener">📊 スプレッドシートを開く</a>`);
+    }
+    if (currentSettings?.notionDatabaseUrl) {
+      links.push(`<a class="btn-link" href="${esc(currentSettings.notionDatabaseUrl)}" target="_blank" rel="noopener">🗒️ Notion DBを開く</a>`);
+    }
+    destinationLinks.innerHTML = links.length ? links.join('') : '<span class="set-note">保存先リンクは未設定です。</span>';
   }
 
   function settingsComplete(settings) {
@@ -773,7 +763,7 @@
     setSavRow('rowGemini', '⏳', 'Gemini で AI 要約中…', false);
     if (destinations.indexOf('notion') !== -1) setSavRow('rowNotion', '○', 'Notion に送信中…', true);
     if (destinations.indexOf('sheet')  !== -1) setSavRow('rowSheet',  '○', 'スプレッドシートに送信中…', true);
-    setSavRow('rowLocal',  '○', 'ブラウザに保存中…', true);
+    setSavRow('rowLocal',  '○', '保存履歴を更新中…', true);
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
     let summary = '';
@@ -805,13 +795,10 @@
       if (destinations.indexOf('sheet')  !== -1) setSavRow('rowSheet',  '⚠️', '送信失敗: ' + err.message, true);
     }
 
-    setSavRow('rowLocal', '⏳', 'ブラウザに保存中…', false);
-    try {
-      await dbAdd({ id, ownerUserId:currentUser?.userId || '', clientName:state.clientName, mtgDate:state.mtgDate, text:state.contentText, summary, durationSec:state.durationSec, audioBlob:state.contentAudio, audioType:state.contentType, createdAt:new Date().toISOString(), sentAt, destinations });
-      setSavRow('rowLocal', '✅', 'ブラウザに保存完了', true);
-    } catch(err) { setSavRow('rowLocal', '⚠️', '保存失敗: ' + err.message, true); }
-
+    setSavRow('rowLocal', '⏳', '保存履歴を更新中…', false);
+    historyLoaded = false;
     await renderList();
+    setSavRow('rowLocal', '✅', '保存履歴を更新しました', true);
     $('savingTitle').textContent = '✅ 保存完了！';
     savingDoneBtn.classList.add('show');
   }
@@ -852,16 +839,6 @@
   async function saveRecordingToServer(payload) {
     return callApi('saveRecording', { recording:payload });
   }
-  // 後方互換用 (再送信ボタンなど)
-  async function sendToNotion(payload) {
-    if (!payload.destinations) payload.destinations = ['notion'];
-    const json = await saveRecordingToServer(payload);
-    if (json?.ok === false) {
-      const errs = json.results ? Object.values(json.results).filter(r=>!r.ok).map(r=>r.error).join(' / ') : (json.error || 'Unknown error');
-      throw new Error(errs);
-    }
-    return json;
-  }
 
   /* ===== View mode ===== */
   let viewMode = 'all';
@@ -879,21 +856,22 @@
   });
 
   /* ===== List ===== */
-  const audioCache = new Map();
-  function revokeAll() { audioCache.forEach(u => URL.revokeObjectURL(u)); audioCache.clear(); }
-  async function getOwnedEntries() {
-    const ownerUserId = currentUser?.userId || '';
-    const all = await dbGetAll();
-    return all.filter(e => (e.ownerUserId || '') === ownerUserId);
+  let historyCache = [];
+  let historyLoaded = false;
+
+  async function fetchHistory() {
+    const json = await callApi('getHistory', { limit: 100 });
+    historyCache = json.entries || [];
+    historyLoaded = true;
+    return historyCache;
   }
 
   function buildCard(e) {
-    let audioHtml = '';
-    if (e.audioBlob?.size > 0) {
-      const u = URL.createObjectURL(e.audioBlob);
-      audioCache.set(e.id, u);
-      audioHtml = `<audio class="mtg-audio" controls src="${u}"></audio>`;
-    }
+    const actions = [];
+    if (e.notionUrl) actions.push(`<a class="btn-ghost" href="${esc(e.notionUrl)}" target="_blank" rel="noopener">Notionを開く</a>`);
+    if (e.sheetUrl) actions.push(`<a class="btn-ghost" href="${esc(e.sheetUrl)}" target="_blank" rel="noopener">シート行を開く</a>`);
+    actions.push(`<button class="btn-ghost" data-act="copy" data-id="${esc(e.id)}">コピー</button>`);
+    actions.push(`<button class="btn-ghost" data-act="print" data-id="${esc(e.id)}">印刷/PDF</button>`);
     return `
       <div class="mtg-card">
         <div class="mtg-client">👤 ${esc(e.clientName||'（名前なし）')}</div>
@@ -901,27 +879,34 @@
         <div class="mtg-meta">
           <span>⏱ ${fmtDur(e.durationSec||0)}</span>
           <span>📝 ${(e.text||'').length}文字</span>
+          <span>${e.source === 'notion' ? '🗒️ Notion' : '📊 スプレッドシート'}</span>
         </div>
         ${e.summary ? `<div class="mtg-summary">${esc(e.summary)}</div>` : ''}
-        ${e.sentAt  ? `<div class="mtg-sent">🗒️ Notion 送信済 (${new Date(e.sentAt).toLocaleString('ja-JP')})</div>` : ''}
-        ${audioHtml}
-        <div class="mtg-actions">
-          <button class="btn-ghost" data-act="send" data-id="${e.id}">${e.sentAt?'再送信':'Notion 送信'}</button>
-          <button class="btn-ghost" data-act="copy" data-id="${e.id}">コピー</button>
-          <button class="btn-ghost" data-act="print" data-id="${e.id}">印刷/PDF</button>
-          <button class="btn-ghost" data-act="del"  data-id="${e.id}">削除</button>
-        </div>
+        <div class="mtg-actions">${actions.join('')}</div>
       </div>`;
   }
 
   async function renderList() {
-    revokeAll();
+    if (!historyLoaded) {
+      $('listEl').innerHTML = '<div class="empty">保存履歴を読み込み中…</div>';
+      try {
+        await fetchHistory();
+      } catch (err) {
+        $('listEl').innerHTML = `<div class="empty">履歴取得失敗: ${esc(err.message)}</div>`;
+        $('cntBadge').textContent = '0';
+        return;
+      }
+    }
+    renderHistory();
+  }
+
+  function renderHistory() {
     const q   = $('searchInput').value.trim().toLowerCase();
-    const all = await getOwnedEntries();
+    const all = historyCache.slice();
     all.sort((a,b) => a.createdAt < b.createdAt ? 1 : -1);
     $('cntBadge').textContent = all.length;
     const rows = q ? all.filter(e => (e.clientName||'').toLowerCase().includes(q) || (e.text||'').toLowerCase().includes(q)) : all;
-    if (!rows.length) { $('listEl').innerHTML = `<div class="empty">${all.length?'一致する項目はありません':'まだ録音はありません'}</div>`; return; }
+    if (!rows.length) { $('listEl').innerHTML = `<div class="empty">${all.length?'一致する項目はありません':'保存先に履歴はまだありません'}</div>`; return; }
 
     if (viewMode === 'client') {
       // Group by clientName
@@ -946,22 +931,13 @@
     const btn = ev.target.closest('[data-act]');
     if (!btn) return;
     const { act, id } = btn.dataset;
-    const all   = await getOwnedEntries();
+    const all   = historyCache;
     const entry = all.find(e => e.id === id);
     if (!entry) return;
-    if (act === 'del') {
-      if (!confirm('この録音を削除しますか？')) return;
-      await dbDelete(id); await renderList();
-    } else if (act === 'copy') {
+    if (act === 'copy') {
       const t = `【${entry.clientName}】${entry.mtgDate ? fmtDate(entry.mtgDate) : ''}\n\n${entry.summary||entry.text||''}`;
       await navigator.clipboard.writeText(t).catch(()=>{});
       btn.textContent = '✓ コピー済'; setTimeout(() => btn.textContent = 'コピー', 1200);
-    } else if (act === 'send') {
-      btn.disabled = true; btn.textContent = '送信中…';
-      try {
-        await sendToNotion({ id:entry.id, clientName:entry.clientName||'', mtgDate:entry.mtgDate||'', text:entry.text||'', summary:entry.summary||'', durationSec:entry.durationSec||0, createdAt:entry.createdAt });
-        entry.sentAt = new Date().toISOString(); await dbPut(entry); await renderList();
-      } catch(err) { showError('Notion 送信失敗: ' + err.message); btn.disabled = false; btn.textContent = 'Notion 送信'; }
     } else if (act === 'print') {
       const clientName = entry.clientName || '（名前なし）';
       const dateStr    = entry.mtgDate ? fmtDate(entry.mtgDate) : fmtDt(entry.createdAt);
@@ -998,14 +974,10 @@ ${entry.summary ? `<h2>AI要約</h2><pre>${escHtml(entry.summary)}</pre>` : ''}
     return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  $('searchInput').addEventListener('input', renderList);
+  $('searchInput').addEventListener('input', renderHistory);
   $('clearAllBtn').addEventListener('click', async () => {
-    const all = await getOwnedEntries();
-    if (!all.length) return;
-    if (confirm(`${all.length}件すべて削除しますか？`)) {
-      await Promise.all(all.map(e => dbDelete(e.id)));
-      await renderList();
-    }
+    historyLoaded = false;
+    await renderList();
   });
 
   /* ===== Helpers ===== */

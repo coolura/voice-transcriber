@@ -22,7 +22,7 @@
 const SPREADSHEET_ID       = '1THwJXYyFXD5CcZAiY3FOL7xfb51SPQMq99ctA7UF5T8';
 const SETTINGS_SHEET_NAME  = '利用者設定';
 const SHEET_NAME           = 'MTG録音';
-const SHEET_HEADERS        = ['日時', 'クライアント名', 'MTG日', '長さ(秒)', '長さ', '文字数', 'AI要約', '全文テキスト', 'ID'];
+const SHEET_HEADERS        = ['日時', 'クライアント名', 'MTG日', '長さ(秒)', '長さ', '文字数', 'AI要約', '全文テキスト', 'ID', 'Notion URL'];
 const SETTINGS_HEADERS     = [
   '利用者ID',
   'パスワードハッシュ',
@@ -119,6 +119,10 @@ function handleAction_(data) {
     case 'saveRecording':
       return jsonOut_(withAuth_(data, function(user) {
         return saveRecordingForUser_(user, data.recording || {});
+      }));
+    case 'getHistory':
+      return jsonOut_(withAuth_(data, function(user) {
+        return getHistoryForUser_(user, data.limit || 100);
       }));
     default:
       return jsonOut_({ ok: false, error: '不明な action です: ' + data.action });
@@ -217,6 +221,9 @@ function saveRecordingForUser_(user, recording) {
   const results = {};
   if (destinations.indexOf('notion') !== -1) {
     results.notion = saveToNotion_(data, user);
+    if (results.notion && results.notion.ok && results.notion.url) {
+      data.notionUrl = results.notion.url;
+    }
   }
   if (destinations.indexOf('sheet') !== -1) {
     results.sheet = saveToSheet_(data, user);
@@ -294,7 +301,9 @@ function publicSettings_(user) {
   return {
     displayName: user.displayName,
     spreadsheetId: user.spreadsheetId,
+    spreadsheetUrl: spreadsheetUrl_(user.spreadsheetId),
     notionDatabaseId: user.notionDatabaseId,
+    notionDatabaseUrl: notionDatabaseUrl_(user.notionDatabaseId),
     hasNotionToken: Boolean(user.notionToken),
     hasGeminiApiKey: Boolean(user.geminiApiKey),
     geminiModel: user.geminiModel || DEFAULT_GEMINI_MODEL,
@@ -391,6 +400,9 @@ function saveToSheet_(data, user) {
       sheet.setColumnWidth(7, 380); // AI要約
       sheet.setColumnWidth(8, 380); // 全文テキスト
       sheet.setColumnWidth(9, 140); // ID
+      sheet.setColumnWidth(10, 260); // Notion URL
+    } else {
+      sheet.getRange(1, 1, 1, SHEET_HEADERS.length).setValues([SHEET_HEADERS]);
     }
 
     const createdAt   = data.createdAt ? new Date(data.createdAt) : new Date();
@@ -406,16 +418,118 @@ function saveToSheet_(data, user) {
       String(data.summary || ''),               // AI要約
       String(data.text || ''),                  // 全文テキスト
       String(data.id || ''),                    // ID
+      String(data.notionUrl || ''),             // Notion URL
     ]);
 
     // 折返表示を有効に
     const lastRow = sheet.getLastRow();
     sheet.getRange(lastRow, 7, 1, 2).setWrap(true).setVerticalAlignment('top');
 
-    return { ok: true, row: lastRow };
+    return { ok: true, row: lastRow, url: spreadsheetRowUrl_(ss, sheet, lastRow) };
   } catch (err) {
     return { ok: false, error: String(err && err.message || err) };
   }
+}
+
+/* ===== 履歴取得 ===== */
+function getHistoryForUser_(user, limit) {
+  const max = Math.max(1, Math.min(Number(limit || 100), 200));
+  const entries = [];
+
+  if (user.spreadsheetId) {
+    try {
+      const ss = SpreadsheetApp.openById(user.spreadsheetId);
+      const sheet = ss.getSheetByName(SHEET_NAME);
+      if (sheet && sheet.getLastRow() > 1) {
+        const lastRow = sheet.getLastRow();
+        const startRow = Math.max(2, lastRow - max + 1);
+        const rows = sheet.getRange(startRow, 1, lastRow - startRow + 1, Math.max(sheet.getLastColumn(), SHEET_HEADERS.length)).getValues();
+        rows.forEach(function(row, i) {
+          const sheetRow = startRow + i;
+          entries.push({
+            id: String(row[8] || 'sheet_' + sheetRow),
+            source: 'sheet',
+            createdAt: dateToIso_(row[0]),
+            clientName: String(row[1] || ''),
+            mtgDate: String(row[2] || ''),
+            durationSec: Number(row[3] || 0),
+            summary: String(row[6] || ''),
+            text: String(row[7] || ''),
+            notionUrl: String(row[9] || ''),
+            sheetUrl: spreadsheetRowUrl_(ss, sheet, sheetRow),
+          });
+        });
+      }
+    } catch (err) {
+      return { ok: false, error: '履歴取得に失敗しました: ' + String(err && err.message || err) };
+    }
+  }
+
+  if (user.notionToken && user.notionDatabaseId) {
+    const seenNotionUrls = {};
+    entries.forEach(function(entry) {
+      if (entry.notionUrl) seenNotionUrls[entry.notionUrl] = true;
+    });
+    const notionRows = fetchNotionHistory_(user, max);
+    notionRows.forEach(function(row) {
+      if (!row.notionUrl || !seenNotionUrls[row.notionUrl]) entries.push(row);
+    });
+  }
+
+  entries.sort(function(a, b) {
+    return String(a.createdAt || '') < String(b.createdAt || '') ? 1 : -1;
+  });
+
+  return {
+    ok: true,
+    entries: entries.slice(0, max),
+    links: {
+      spreadsheetUrl: spreadsheetUrl_(user.spreadsheetId),
+      notionDatabaseUrl: notionDatabaseUrl_(user.notionDatabaseId),
+    },
+  };
+}
+
+function fetchNotionHistory_(user, limit) {
+  try {
+    const res = UrlFetchApp.fetch('https://api.notion.com/v1/databases/' + encodeURIComponent(user.notionDatabaseId) + '/query', {
+      method: 'post',
+      headers: notionHeaders_(user.notionToken),
+      payload: JSON.stringify({
+        page_size: Math.max(1, Math.min(Number(limit || 100), 100)),
+        sorts: [{ timestamp: 'created_time', direction: 'descending' }],
+      }),
+      muteHttpExceptions: true,
+    });
+    const data = JSON.parse(res.getContentText() || '{}');
+    if (res.getResponseCode() < 200 || res.getResponseCode() >= 300) return [];
+    return (data.results || []).map(function(page) {
+      return {
+        id: page.id,
+        source: 'notion',
+        createdAt: page.created_time || '',
+        clientName: notionPageTitle_(page) || 'Notionページ',
+        mtgDate: '',
+        durationSec: 0,
+        summary: '',
+        text: '',
+        notionUrl: page.url || '',
+        sheetUrl: '',
+      };
+    });
+  } catch (_) {
+    return [];
+  }
+}
+
+function notionPageTitle_(page) {
+  const props = page.properties || {};
+  for (var key in props) {
+    if (props[key] && props[key].type === 'title') {
+      return (props[key].title || []).map(function(t) { return t.plain_text || ''; }).join('');
+    }
+  }
+  return '';
 }
 
 /* ===== Notion ブロック構築 ===== */
@@ -570,6 +684,21 @@ function formatDuration_(sec) {
   if (!sec) return '0秒';
   var h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
   return (h?h+'時間':'') + (m?m+'分':'') + (s||(!h&&!m)?s+'秒':'');
+}
+function spreadsheetUrl_(spreadsheetId) {
+  return spreadsheetId ? 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/edit' : '';
+}
+function spreadsheetRowUrl_(ss, sheet, row) {
+  return ss.getUrl() + '#gid=' + sheet.getSheetId() + '&range=A' + row;
+}
+function notionDatabaseUrl_(databaseId) {
+  return databaseId ? 'https://www.notion.so/' + String(databaseId).replace(/-/g, '') : '';
+}
+function dateToIso_(value) {
+  if (!value) return '';
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) return value.toISOString();
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? String(value) : d.toISOString();
 }
 function jsonOut_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
